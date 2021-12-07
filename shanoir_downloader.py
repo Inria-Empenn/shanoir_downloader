@@ -1,3 +1,4 @@
+import os
 import requests
 import json
 import getpass
@@ -138,7 +139,7 @@ refresh_token = None
 # using user's password, get the first access token and the refresh token
 def ask_access_token(config):
     try:
-        password = getpass.getpass(prompt='Password for Shanoir user ' + config['username'] + ': ', stream=None) 
+        password = os.environ['shanoir_password'] if 'shanoir_password' in os.environ else getpass.getpass(prompt='Password for Shanoir user ' + config['username'] + ': ', stream=None)
     except:
         sys.exit(0)
     url = 'https://' + config['domain'] + '/auth/realms/shanoir-ng/protocol/openid-connect/token'
