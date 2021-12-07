@@ -7,7 +7,7 @@ import subprocess
 import requests
 import pandas
 import numpy as np
-from dicomanonymizer import anonymize
+import dicomanonymizer
 import shanoir_downloader
 
 Path.ls = lambda x: sorted(list(x.iterdir()))
@@ -165,7 +165,7 @@ while len(datasets_to_download) > 0:
 			anonymized_dicom_folder = dicom_folder.parent / f'{dicom_folder.name}_anonymized'
 			try:
 				anonymized_dicom_folder.mkdir(exist_ok=True)
-				anonymize(str(dicom_folder), str(anonymized_dicom_folder), {}, True)
+				dicomanonymizer.anonymize(str(dicom_folder), str(anonymized_dicom_folder), {}, True)
 			except Exception as e:
 				missing_datasets = add_missing_dataset(missing_datasets, sequence_id, 'anonymization error', str(e))
 				continue
