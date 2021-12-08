@@ -74,7 +74,7 @@ def add_missing_dataset(missing_datasets, sequence_id, reason, message, raw_fold
 	else:
 		missing_datasets = missing_datasets.append(pandas.Series({'reason': str(reason), 'message': str(message), 'n_tries': 1}, name=sequence_id))
 	missing_datasets.to_csv(str(missing_datasets_path))
-	if (raw_folder / sequence_id).exists():
+	if (raw_folder / sequence_id).exists() and reason not in args.unrecoverable_errors:
 		shutil.rmtree(raw_folder / sequence_id)
 	return missing_datasets
 
@@ -94,6 +94,7 @@ def rename_path(old_path, new_path):
 datasets_to_download = all_datasets
 
 raw_folder = output_folder / 'raw'
+processed_folder = output_folder / 'processed'
 
 def replace_with_sequence_id(sequence_id, dataset, tag):
 	dataset.get(tag).value = sequence_id
@@ -235,7 +236,7 @@ while len(datasets_to_download) > 0:
 		# Move output_folder / raw / sequence_id / downloaded_archive / sequence_name.zip to output_folder / raw / sequence_id_sequence_name.zip
 		rename_path(dicom_zip, raw_folder / f'{sequence_id}_{dicom_zip.name}')
 		if final_output != dicom_zip:
-			rename_path(final_output, output_folder / 'processed' / final_output.name)
+			rename_path(final_output, processed_folder / final_output.name)
 
 		# If user anonymized and do not keep intermediate files: remove unzipped anonymized dicom, and if user also encrypted: also remove the intermediate zip
 		if not args.skip_anonymization:
@@ -245,9 +246,9 @@ while len(datasets_to_download) > 0:
 				if not args.skip_encryption:
 					dicom_zip_to_encrypt.unlink()
 			else:
-				rename_path(anonymized_dicom_folder, output_folder / 'processed' / sequence_id / anonymized_dicom_folder.name)
+				rename_path(anonymized_dicom_folder, processed_folder / sequence_id / anonymized_dicom_folder.name)
 				if not args.skip_encryption:
-					rename_path(dicom_zip_to_encrypt, output_folder / 'processed' / sequence_id / dicom_zip_to_encrypt.name)
+					rename_path(dicom_zip_to_encrypt, processed_folder / sequence_id / dicom_zip_to_encrypt.name)
 		
 		# Remove dicom
 		if not args.keep_intermediate_files:
