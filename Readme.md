@@ -10,12 +10,12 @@ It is advised to install the project in [a virtual environment](https://docs.pyt
 
 [Install python with pip](https://www.python.org/downloads/) ; then use `pip install -r requirements.txt` to install python dependencies.
 
+Optionally, rename the `.env.example` to `.env` and set the variables (`shanoir_password`, `gpg_recipient`) to your need.
+
 (Deprecated, now using pydicom) To anonymize the dicoms, download or clone the latest version of [DicomAnonymizer](https://github.com/KitwareMedical/dicom-anonymizer/) (for example in this repository) and install it :
  - install wheel with `pip install wheel`
  - in the `dicom-anonymizer` folder, package the source files with `python ./setup.py bdist_wheel`
  - install `dicom-anonymizer` with `pip install ./dist/dicom_anonymizer-1.0.9-py2.py3-none-any.whl` (the version number might be higher)
-
-Optionally, rename the `.env.example` to `.env` and set the variables (`shanoir_password`, `gpg_recipient`) to your need.
 
 ## Example usage
 
