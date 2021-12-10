@@ -96,8 +96,7 @@ def initialize(args):
         if args.configuration_folder:
             configuration_folder = Path(args.configuration_folder)
         else:
-            cfs = list(Path.home().glob('.su_v*'))
-            cfs.sort()
+            cfs = sorted(list(Path.home().glob('.su_v*')))
             configuration_folder = cfs[-1] if len(cfs) > 0 else Path().home()
 
         proxy_settings = configuration_folder / 'proxy.properties'
