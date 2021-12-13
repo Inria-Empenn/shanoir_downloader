@@ -52,7 +52,7 @@ def init_logging(args):
     logfile.parent.mkdir(exist_ok=True, parents=True)
 
     logging.basicConfig(
-        level=logging.INFO if verbose else logging.ERROR,
+        level=logging.INFO, # if verbose else logging.ERROR,
         format="%(asctime)s [%(levelname)s] %(message)s",
         datefmt='%Y-%m-%d %H:%M:%S',
         handlers=[

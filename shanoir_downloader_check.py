@@ -10,7 +10,11 @@ import pydicom
 import pandas
 import numpy as np
 import shanoir_downloader
-import functools
+from py7zr import pack_7zarchive, unpack_7zarchive
+
+# register 7zip file format
+shutil.register_archive_format('7zip', pack_7zarchive, description='7zip archive')
+shutil.register_unpack_format('7zip', ['.7z'], unpack_7zarchive)
 
 Path.ls = lambda x: sorted(list(x.iterdir()))
 
@@ -179,6 +183,7 @@ while len(datasets_to_download) > 0:
 
 		# Extract the zip file
 		dicom_zip = zip_files[0]
+		logging.info(f'    Extracting {dicom_zip}...')
 		dicom_folder = destination_folder.parent / dicom_zip.stem
 		dicom_folder.mkdir(exist_ok=True)
 		shutil.unpack_archive(str(dicom_zip), str(dicom_folder))
@@ -193,9 +198,11 @@ while len(datasets_to_download) > 0:
 			continue
 
 		# Read the PatientName from the first file, make sure it corresponds to the shanoir_name
+		dicom_file = dicom_files[0]
+		logging.info(f'    Verifying file {dicom_file}...')
 		ds = None
 		try:
-			ds = pydicom.dcmread(str(dicom_files[0]))
+			ds = pydicom.dcmread(str(dicom_file))
 			if ds.PatientName != shanoir_name:
 				missing_datasets = add_missing_dataset(missing_datasets, sequence_id, 'content_shanoir_name', f'Shanoir name {shanoir_name} differs in dicom: {ds.PatientName}', raw_folder)
 				continue
@@ -215,6 +222,7 @@ while len(datasets_to_download) > 0:
 
 			# Anonymize
 			anonymized_dicom_folder = dicom_folder.parent / f'{dicom_folder.name}_anonymized'
+			logging.info(f'    Anonymizing dataset to {anonymized_dicom_folder}...')
 			
 			# extraAnonymizationRules = {}
 			# extraAnonymizationRules[(0x0010, 0x0020)] = functools.partial(replace_with_sequence_id, sequence_id) 	# Patient ID
@@ -230,19 +238,21 @@ while len(datasets_to_download) > 0:
 				continue
 			
 			# Zip the anonymized dicom file
+			dicom_zip_to_encrypt = anonymized_dicom_folder.parent / f'{anonymized_dicom_folder.name}.7z'
+			logging.info(f'    Compressing dataset to {dicom_zip_to_encrypt}...')
 			try:
-				shutil.make_archive(str(anonymized_dicom_folder), 'zip', str(anonymized_dicom_folder))
+				shutil.make_archive(str(anonymized_dicom_folder), '7zip', str(anonymized_dicom_folder))
 			except Exception as e:
 				missing_datasets = add_missing_dataset(missing_datasets, sequence_id, 'zip_compression_error', str(e), raw_folder)
 				continue
 			
-			dicom_zip_to_encrypt = anonymized_dicom_folder.parent / f'{anonymized_dicom_folder.name}.zip'
 			final_output = dicom_zip_to_encrypt
 
 		if not args.skip_encryption:
 
 			# Encrypt the zip archive
 			encrypted_dicom_zip = dicom_zip_to_encrypt.parent / f'{dicom_zip_to_encrypt.name}.gpg'
+			logging.info(f'    Encrypting dataset to {encrypted_dicom_zip}...')
 			command = ['gpg', '--output', str(encrypted_dicom_zip), '--encrypt', '--recipient', gpg_recipient, '--trust-model', 'always', str(dicom_zip)]
 			try:
 				return_code = subprocess.call(command)
