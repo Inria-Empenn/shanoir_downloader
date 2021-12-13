@@ -18,7 +18,7 @@ parser = shanoir_downloader.create_arg_parser()
 
 parser.add_argument('-u', '--username', required=True, help='Your shanoir username.')
 parser.add_argument('-d', '--domain', default='shanoir.irisa.fr', help='The shanoir domain to query.')
-parser.add_argument('-ids', '--dataset_ids', default='', help='Path to a csv or tsv file containing the dataset ids to download (with the columns "sequence_id" and "subject_name").')
+parser.add_argument('-ids', '--dataset_ids', required=True, help='Path to a csv or tsv file containing the dataset ids to download (with the columns "sequence_id" and "subject_name").')
 parser.add_argument('-of', '--output_folder', required=True, help='The destination folder where files will be downloaded.')
 parser.add_argument('-gpgr', '--gpg_recipient', help='The gpg recipient (usually an email address) to encrypt the zip files.')
 parser.add_argument('-sa', '--skip_anonymization', action='store_true', help='Skip the DICOM anonymization.')
@@ -99,16 +99,21 @@ if not anonymization_fields_path.exists():
 
 anonymization_fields = pandas.read_csv(str(anonymization_fields_path), sep='\t')
 
-def anonymize_fields(anonymization_fields, dicom, dicom_output_path):
+def anonymize_fields(anonymization_fields, dicom, dicom_output_path, sequence_id):
 	for dicom_file in dicom_files:
 		ds = pydicom.dcmread(str(dicom_file))
+		ds.PatientID = sequence_id				# [(0x0010, 0x0010)]
+		ds.PatientName = sequence_id 			# [(0x0010, 0x0020)]
 		for index, row in anonymization_fields.iterrows():
 			codes = row['Code'][1:-1].split(',')
 			codes = [int('0x'+code, base=16) for code in codes]
-			data_element = ds[codes[0], codes[1]]
-			# if data_element.name.lower() != row['Field Name'].lower():
-			# 	logging.info(f"DICOM field {row['Code']} does not correspond to {row['Field Name']} but {data_element.name}. Overwriting {row['Code']} field anyway.")
-			data_element.value = ''
+			try:
+				data_element = ds[codes[0], codes[1]]
+				# if data_element.name.lower() != row['Field Name'].lower():
+				# 	logging.info(f"DICOM field {row['Code']} does not correspond to {row['Field Name']} but {data_element.name}. Overwriting {row['Code']} field anyway.")
+				data_element.value = ''
+			except KeyError as e:
+				pass # If the key is not found: juste ignore anonymization
 		ds.save_as(dicom_output_path / dicom_file.name)
 	return
 
@@ -211,16 +216,15 @@ while len(datasets_to_download) > 0:
 			# Anonymize
 			anonymized_dicom_folder = dicom_folder.parent / f'{dicom_folder.name}_anonymized'
 			
-			extraAnonymizationRules = {}
-			
-			extraAnonymizationRules[(0x0010, 0x0020)] = functools.partial(replace_with_sequence_id, sequence_id) 	# Patient ID
-			extraAnonymizationRules[(0x0010, 0x0010)] = functools.partial(replace_with_sequence_id, sequence_id) 	# Patient's Name
+			# extraAnonymizationRules = {}
+			# extraAnonymizationRules[(0x0010, 0x0020)] = functools.partial(replace_with_sequence_id, sequence_id) 	# Patient ID
+			# extraAnonymizationRules[(0x0010, 0x0010)] = functools.partial(replace_with_sequence_id, sequence_id) 	# Patient's Name
 			
 			try:
 				anonymized_dicom_folder.mkdir(exist_ok=True)
 				# import dicomanonymizer
 				# dicomanonymizer.anonymize(str(dicom_folder), str(anonymized_dicom_folder), extraAnonymizationRules, True)
-				anonymize_fields(anonymization_fields, dicom_files, anonymized_dicom_folder)
+				anonymize_fields(anonymization_fields, dicom_files, anonymized_dicom_folder, sequence_id)
 			except Exception as e:
 				missing_datasets = add_missing_dataset(missing_datasets, sequence_id, 'anonymization_error', str(e), raw_folder)
 				continue
