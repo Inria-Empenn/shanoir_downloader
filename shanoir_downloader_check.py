@@ -208,7 +208,7 @@ while len(datasets_to_download) > 0:
 				continue
 
 			if ds.SeriesDescription != series_description: 	# or if ds[0x0008, 0x103E].value != series_description:
-				missing_datasets = add_missing_dataset(missing_datasets, sequence_id, 'content_series_description', f'Series description {series_description} differs in dicom: {ds[0x0008, 0x103E]}', raw_folder)
+				missing_datasets = add_missing_dataset(missing_datasets, sequence_id, 'content_series_description', f'Series description {series_description} differs in dicom: {ds.SeriesDescription}', raw_folder)
 				continue
 		except Exception as e:
 			missing_datasets = add_missing_dataset(missing_datasets, sequence_id, 'content_read', f'Error while reading DICOM: {e}', raw_folder)
