@@ -10,7 +10,7 @@ It is advised to install the project in [a virtual environment](https://docs.pyt
 
 [Install python with pip](https://www.python.org/downloads/) ; then use `pip install -r requirements.txt` to install python dependencies.
 
-Optionally, rename the `.env.example` to `.env` and set the variables (`shanoir_password`, `gpg_recipient`) to your need.
+Optionally, rename the `.env.example` to `.env` and set the variables (`shanoir_password`, `gpg_recipient`) to your needs.
 
 **(Deprecated, now using pydicom)** To anonymize the dicoms, download or clone the latest version of [DicomAnonymizer](https://github.com/KitwareMedical/dicom-anonymizer/) (for example in this repository) and install it :
  - install wheel with `pip install wheel`
@@ -19,7 +19,14 @@ Optionally, rename the `.env.example` to `.env` and set the variables (`shanoir_
 
 ## Example usage
 
+To download datasets, verify the content of them, anonymize them and / or encrypt them you can use a command like:
+
 `python shanoir_downloader_check.py -u username -d shanoir-ofsep.irisa.fr -ids path/to/datasets_to_download.csv -of path/to/output/folder/ -se -lf path/to/downloads.log`
+
+You can also download datasets from a [SolR search](https://shanoir.irisa.fr/shanoir-ng/solr-search) as on the website:
+`python shanoir_downloader.py -u amasson -d shanoir-ofsep.irisa.fr -of /data/amasson/test/shanoir_test4 --search_text "FLAIR" -p 1 -s 2 `
+
+where `--search_text` is the string you would use on [the SolR search page](https://shanoir.irisa.fr/shanoir-ng/solr-search) (for example `(subjectName:(CT* OR demo*) AND studyName:etude test) OR datasetName:*flair*`). More information on the info box of the SolR search page.
 
 ## Password management
 
