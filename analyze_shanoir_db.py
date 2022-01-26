@@ -1,3 +1,5 @@
+import time
+from datetime import datetime
 import os
 import sys
 from pathlib import Path
@@ -102,6 +104,11 @@ while len(datasets_to_download) > 0:
 
 	logging.info(f'There are {len(datasets_to_download)} remaining datasets to download.')
 
+	now = datetime.now()
+	if now.hour > 3 and now.hour < 5:
+		future = datetime(now.year, now.month, now.day, 5, 0)
+		time.sleep((future-now).total_seconds())
+
 	if len(downloaded_datasets) > 0:
 		logging.info(f'{len(downloaded_datasets)} datasets have been downloaded already, over {len(all_datasets)} datasets.')
 
@@ -109,7 +116,7 @@ while len(datasets_to_download) > 0:
 
 		sequence_id = index
 		shanoir_name = row['shanoir_name']
-		series_description = row['sequence_name']
+		series_description = row['sequence_name'] if 'sequence_name' in row else row['series_description']
 
 		logging.info(f'Downloading dataset {sequence_id}, shanoir name: {shanoir_name}, series description: {series_description}')
 
