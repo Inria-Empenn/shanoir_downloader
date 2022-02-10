@@ -1,3 +1,4 @@
+from datetime import datetime
 import os
 import sys
 from pathlib import Path
@@ -141,6 +142,11 @@ while len(datasets_to_download) > 0:
 
 	logging.info(f'There are {len(datasets_to_download)} remaining datasets to download.')
 
+	now = datetime.now()
+	if now.hour > 3 and now.hour < 5:
+		future = datetime(now.year, now.month, now.day, 5, 0)
+		time.sleep((future-now).total_seconds())
+	
 	if len(downloaded_datasets) > 0:
 		logging.info(f'{len(downloaded_datasets)} datasets have been downloaded already, over {len(all_datasets)} datasets.')
 

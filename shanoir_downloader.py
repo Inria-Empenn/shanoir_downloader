@@ -11,8 +11,8 @@ from http.client import responses
 from pathlib import Path
 Path.ls = lambda x: sorted(list(x.iterdir()))
 
-def create_arg_parser():
-    parser = argparse.ArgumentParser(prog=__file__, description="""Shanoir downloader""", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+def create_arg_parser(description="""Shanoir downloader"""):
+    parser = argparse.ArgumentParser(prog=__file__, description=description, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     return parser
 
 def add_common_arguments(parser):
