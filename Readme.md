@@ -4,6 +4,8 @@ Shanoir downloader enables to download datasets, check that the downloaded DICOM
 
 See `python shanoir_downloader_check.py --help` for usage information.
 
+Other tool to download and reorganize data as BIDS-like specification: https://gitlab.inria.fr/mgaubert/download-data-on-shanoir
+
 ## Install
 
 It is advised to install the project in [a virtual environment](https://docs.python.org/3/tutorial/venv.html). 

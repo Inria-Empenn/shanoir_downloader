@@ -4,4 +4,4 @@ ienv/
 dicom-anonymizer/
 __pycache__
 .env
-downloads.log
+*.log
