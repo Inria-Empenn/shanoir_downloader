@@ -33,7 +33,7 @@ def add_configuration_arguments(parser):
     parser.add_argument('-pu', '--proxy_url', required=False, help='The proxy url in the format "user@host:port". The proxy password will be asked in the terminal. See --configuration_folder.')
     parser.add_argument('-ca', '--certificate', default='', required=False, help='Path to the CA bundle to use.')
     parser.add_argument('-v', '--verbose', default=False, action='store_true', help='Print log messages.')
-    parser.add_argument('-t', '--timeout', type=float, default=60, help='The request timeout.')
+    parser.add_argument('-t', '--timeout', type=float, default=60*4, help='The request timeout.')
     parser.add_argument('-lf', '--log_file', type=str, help="Path to the log file", default='downloads.log')
     return parser
 
