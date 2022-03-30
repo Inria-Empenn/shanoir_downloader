@@ -88,5 +88,4 @@ for dicom in sorted(list(dicoms.iterdir())):
         dicom_folder = dicom_zip.parent / dicom_zip.stem
         dicom_folder.mkdir(exist_ok=True)
         shutil.unpack_archive(str(dicom_zip), str(dicom_folder))
-
         convert_dicom_to_nifti(dicom_folder, conversion_info)

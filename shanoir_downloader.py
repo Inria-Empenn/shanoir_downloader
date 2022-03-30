@@ -361,7 +361,7 @@ def download_datasets_from_ids(args):
     except requests.HTTPError as e:
         logging.error(f'Response status code: {e.response.status_code}, reason: {e.response.reason}, error: {e.response.error}')
         logging.error(str(e))
-    except requests.URLError as e:
+    except requests.RequestException as e:
         logging.error(str(e))
     except Exception as e:
         logging.error(str(e))
@@ -426,7 +426,7 @@ def download_search_results(config, args, response):
                 error_message = e.response.error if hasattr(e.response, 'error') else ''
                 logging.error(f'Response status code: {e.response.status_code}, reason: {e.response.reason}, error: {error_message}')
                 logging.error(str(e))
-            except requests.URLError as e:
+            except requests.RequestException as e:
                 logging.error(str(e))
             except Exception as e:
                 logging.error(str(e))    

@@ -1,4 +1,5 @@
 from datetime import datetime
+import time
 import os
 import sys
 from pathlib import Path
@@ -58,6 +59,8 @@ else:
 	all_datasets = pandas.read_excel(args.dataset_ids, dtype=datasets_dtype)
 
 all_datasets.set_index('sequence_id', inplace=True)
+# Drop duplicates
+all_datasets = all_datasets[~all_datasets.index.duplicated(keep='first')]
 
 output_folder = Path(config['output_folder'])
 
@@ -71,6 +74,14 @@ missing_datasets.set_index('sequence_id', inplace=True)
 downloaded_datasets = pandas.DataFrame(columns=['sequence_id']) if not downloaded_datasets_path.exists() else pandas.read_csv(str(downloaded_datasets_path), sep='\t', dtype=datasets_dtype)
 downloaded_datasets.set_index('sequence_id', inplace=True)
 
+def append_row_from_data(df, row, index):
+	new_df = pandas.DataFrame.from_records([row], index=index)
+	return pandas.concat([df, new_df])
+
+def append_row(df, row):
+	new_df = pandas.DataFrame([row])
+	return pandas.concat([df, new_df])
+
 def add_missing_dataset(missing_datasets, sequence_id, reason, message, raw_folder):
 	logging.error(f'For dataset {sequence_id}: {message}')
 	if sequence_id in missing_datasets.index:
@@ -78,15 +89,21 @@ def add_missing_dataset(missing_datasets, sequence_id, reason, message, raw_fold
 		missing_datasets.loc[sequence_id, 'reason'] = reason
 		missing_datasets.loc[sequence_id, 'message'] = message
 	else:
-		missing_datasets = missing_datasets.append(pandas.Series({'reason': str(reason), 'message': str(message), 'n_tries': 1}, name=sequence_id))
+		missing_datasets = append_row_from_data(missing_datasets, {'reason': str(reason), 'message': str(message), 'n_tries': 1, 'sequence_id': sequence_id}, 'sequence_id')
+	if missing_datasets.index.name is None:
+		missing_datasets.index.set_names('sequence_id', inplace=True)
 	missing_datasets.to_csv(str(missing_datasets_path), sep='\t')
 	if (raw_folder / sequence_id).exists() and reason not in args.unrecoverable_errors:
 		shutil.rmtree(raw_folder / sequence_id)
 	return missing_datasets
 
-def add_downloaded_dataset(downloaded_datasets, missing_datasets, sequence_id):
+def add_downloaded_dataset(downloaded_datasets, missing_datasets, sequence_id, shanoir_name_match, series_description_match):
 	if sequence_id in downloaded_datasets.index: return
-	downloaded_datasets = downloaded_datasets.append(all_datasets.loc[sequence_id])
+	downloaded_datasets = append_row(downloaded_datasets, all_datasets.loc[sequence_id])
+	downloaded_datasets.loc[sequence_id, 'shanoir_name_match'] = shanoir_name_match
+	downloaded_datasets.loc[sequence_id, 'series_description_match'] = series_description_match
+	if downloaded_datasets.index.name is None:
+		downloaded_datasets.index.set_names('sequence_id', inplace=True)
 	downloaded_datasets.to_csv(str(downloaded_datasets_path), sep='\t')
 	missing_datasets.drop(sequence_id, inplace=True, errors='ignore')
 	missing_datasets.to_csv(str(missing_datasets_path), sep='\t')
@@ -135,7 +152,7 @@ def replace_with_sequence_id(sequence_id, dataset, tag):
 while len(datasets_to_download) > 0:
 	
 	# datasets_to_download is all_datasets except those already downloaded and those missing which are unrecoverable
-	datasets_to_download = all_datasets[all_datasets.index.isin(downloaded_datasets.index) == False]
+	datasets_to_download = all_datasets[~all_datasets.index.isin(downloaded_datasets.index)]
 	datasets_max_tries = missing_datasets[missing_datasets['n_tries'] >= args.max_tries].index
 	datasets_unrecoverable = missing_datasets[missing_datasets['reason'].isin(args.unrecoverable_errors)].index
 	datasets_to_download = datasets_to_download.drop(datasets_max_tries.union(datasets_unrecoverable))
@@ -202,6 +219,9 @@ while len(datasets_to_download) > 0:
 		if len(dicom_files) == 0:
 			missing_datasets = add_missing_dataset(missing_datasets, sequence_id, 'nodicom', f'No DICOM file was found in the dicom directory {dicom_folder}.', raw_folder)
 			continue
+		
+		shanoir_name_match = True
+		series_description_match = True
 
 		# Read the PatientName from the first file, make sure it corresponds to the shanoir_name
 		dicom_file = dicom_files[0]
@@ -210,12 +230,18 @@ while len(datasets_to_download) > 0:
 		try:
 			ds = pydicom.dcmread(str(dicom_file))
 			if ds.PatientName != shanoir_name:
-				missing_datasets = add_missing_dataset(missing_datasets, sequence_id, 'content_shanoir_name', f'Shanoir name {shanoir_name} differs in dicom: {ds.PatientName}', raw_folder)
-				continue
+				message = f'Shanoir name {shanoir_name} differs in dicom: {ds.PatientName}'
+				logging.error(f'For dataset {sequence_id}: {message}')
+				shanoir_name_match = False
+				# missing_datasets = add_missing_dataset(missing_datasets, sequence_id, 'content_shanoir_name', f'Shanoir name {shanoir_name} differs in dicom: {ds.PatientName}', raw_folder)
+				# continue
 
 			if ds.SeriesDescription != series_description: 	# or if ds[0x0008, 0x103E].value != series_description:
-				missing_datasets = add_missing_dataset(missing_datasets, sequence_id, 'content_series_description', f'Series description {series_description} differs in dicom: {ds.SeriesDescription}', raw_folder)
-				continue
+				message = f'Series description {series_description} differs in dicom: {ds.SeriesDescription}'
+				logging.error(f'For dataset {sequence_id}: {message}')
+				series_description_match = False
+				# missing_datasets = add_missing_dataset(missing_datasets, sequence_id, 'content_series_description', f'Series description {series_description} differs in dicom: {ds.SeriesDescription}', raw_folder)
+				# continue
 		except Exception as e:
 			missing_datasets = add_missing_dataset(missing_datasets, sequence_id, 'content_read', f'Error while reading DICOM: {e}', raw_folder)
 			continue
@@ -301,4 +327,4 @@ while len(datasets_to_download) > 0:
 		shutil.rmtree(destination_folder)
 
 		# Add to downloaded datastes
-		downloaded_datasets = add_downloaded_dataset(downloaded_datasets, missing_datasets, sequence_id)
+		downloaded_datasets = add_downloaded_dataset(downloaded_datasets, missing_datasets, sequence_id, shanoir_name_match, series_description_match)
