@@ -81,7 +81,7 @@ def convert_dicom_to_nifti(dicom_directory, conversion_info):
 
 for dicom in sorted(list(dicoms.iterdir())):
     # Extract the zip file
-    zip_files = list(dicom.glob('**/*.zip'))
+    zip_files = list(dicom.glob('*.zip'))
     for dicom_zip in zip_files:
         print(dicom_zip)
         logging.info(f'    Extracting {dicom_zip}...')

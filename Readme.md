@@ -25,7 +25,10 @@ To download datasets, verify the content of them, anonymize them and / or encryp
 
 `python shanoir_downloader_check.py -u username -d shanoir-ofsep.irisa.fr -ids path/to/datasets_to_download.csv -of path/to/output/folder/ -se -lf path/to/downloads.log`
 
+The `example_input_check.csv` file in this repository is an example input file (the format of the `datasets_to_download.csv` file should be the same).
+
 You can also download datasets from a [SolR search](https://shanoir.irisa.fr/shanoir-ng/solr-search) as on the website:
+
 `python shanoir_downloader.py -u amasson -d shanoir-ofsep.irisa.fr -of /data/amasson/test/shanoir_test4 --search_text "FLAIR" -p 1 -s 2 `
 
 where `--search_text` is the string you would use on [the SolR search page](https://shanoir.irisa.fr/shanoir-ng/solr-search) (for example `(subjectName:(CT* OR demo*) AND studyName:etude test) OR datasetName:*flair*`). More information on the info box of the SolR search page.
