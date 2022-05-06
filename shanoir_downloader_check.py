@@ -24,7 +24,7 @@ parser = shanoir_downloader.create_arg_parser()
 
 parser.add_argument('-u', '--username', required=True, help='Your shanoir username.')
 parser.add_argument('-d', '--domain', default='shanoir.irisa.fr', help='The shanoir domain to query.')
-parser.add_argument('-ids', '--dataset_ids', required=True, help='Path to a csv or tsv file containing the dataset ids to download (with the columns "sequence_id" and possibly "shanoir_name" and "series_description").')
+parser.add_argument('-ids', '--dataset_ids', required=False, help='Path to a csv or tsv file containing the dataset ids to download (with the columns "sequence_id" and possibly "shanoir_name" and "series_description").')
 parser.add_argument('-of', '--output_folder', required=True, help='The destination folder where files will be downloaded.')
 parser.add_argument('-gpgr', '--gpg_recipient', help='The gpg recipient (usually an email address) to encrypt the zip files.')
 parser.add_argument('-sa', '--skip_anonymization', action='store_true', help='Skip the DICOM anonymization.')
@@ -39,6 +39,8 @@ parser.add_argument('-vids', '--verified_datasets', default=None, help='Path to 
 parser.add_argument('-af', '--anonymization_fields', default=None, help='Path to a tsv file containing the fields to overwrite. Default is anonymization_fields.tsv beside in shanoir_downloader_check.py.')
 
 shanoir_downloader.add_configuration_arguments(parser)
+shanoir_downloader.add_search_arguments(parser)
+
 args = parser.parse_args()
 
 load_dotenv()
@@ -50,15 +52,33 @@ if not args.skip_encryption and not args.gpg_recipient and 'gpg_recipient' not i
 
 gpg_recipient = args.gpg_recipient or (os.environ['gpg_recipient'] if 'gpg_recipient' in os.environ else None)
 
+if not args.search_text and not args.dataset_ids:
+	sys.exit('Please provide --search_text or --datasets_ids.')
+
+if args.dataset_ids and args.search_text:
+	print('Both --dataset_ids and --search_text arguments were provided. The --search_text argument will be ignored.')
+
 all_datasets = None
+
+if args.search_text and not args.dataset_ids:
+	response = shanoir_downloader.solr_search(config, args)
+
+	if response.status_code == 200:
+		json_content = response.json()['content']
+		# convert to pandas dataframe
+		all_datasets = pandas.DataFrame(json_content)
+		all_datasets.rename(columns={'id': 'sequence_id'}, inplace=True)
+		if len(all_datasets) == 0:
+			sys.exit(f'No datasets found for the search text "{args.search_text}".')
 
 datasets_dtype = {'sequence_id': str, 'shanoir_name': str, 'series_description': str, 'patient_name_in_dicom': str, 'series_description_in_dicom': str}
 missing_datasets_dtype = {'sequence_id': str, 'n_tries': np.int64}
 
-if args.dataset_ids.endswith('.csv') or args.dataset_ids.endswith('.tsv') or args.dataset_ids.endswith('.txt'):
-	all_datasets = pandas.read_csv(args.dataset_ids, sep=',' if args.dataset_ids.endswith('.csv') else '\t', dtype=datasets_dtype)
-else:
-	all_datasets = pandas.read_excel(args.dataset_ids, dtype=datasets_dtype)
+if all_datasets is None:
+	if args.dataset_ids.endswith('.csv') or args.dataset_ids.endswith('.tsv') or args.dataset_ids.endswith('.txt'):
+		all_datasets = pandas.read_csv(args.dataset_ids, sep=',' if args.dataset_ids.endswith('.csv') else '\t', dtype=datasets_dtype)
+	else:
+		all_datasets = pandas.read_excel(args.dataset_ids, dtype=datasets_dtype)
 
 all_datasets.set_index('sequence_id', inplace=True)
 # Drop duplicates

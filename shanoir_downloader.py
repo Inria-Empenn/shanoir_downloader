@@ -420,7 +420,8 @@ def solr_search(config, args):
 def download_search_results(config, args, response):
 
 	if response.status_code == 200:
-		for item in response.json()['content']:
+		json_content = response.json()['content']
+		for item in json_content:
 			try:
 				download_dataset(config, item['datasetId'], args.format)
 			except requests.HTTPError as e:
@@ -430,7 +431,7 @@ def download_search_results(config, args, response):
 			except requests.RequestException as e:
 				logging.error(str(e))
 			except Exception as e:
-				logging.error(str(e))    
+				logging.error(str(e))
 	return
 
 
