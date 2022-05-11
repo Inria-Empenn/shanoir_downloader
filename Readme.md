@@ -30,6 +30,8 @@ With those two files, `shanoir_downloader_check.py` is able to resume a download
 
 Note that when downloading from a search text, the tool will only take the 50 first datasets by default (since `--page` is 0 and `--size` is 50 by default). Provide the arguments `--page` and `--size` to download the search results that you want (you can set `--size` to a big number if you want to download all search results).
 
+Note that the timeout is 4 minutes by default (an timout error is thrown when the download takes more than 4 minutes or the server does not answer within 4 minutes). Use the `--timeout` argument to increase (or decrease) this duration (useful for big datasets).
+
 See `python shanoir_downloader_check.py --help` for more information. 
 
 You might want to skip the anonymization process and the encryption process with the `--skip_anonymization` and `--skip_encryption` arguments respectively (or `-sa` and `-se`).
