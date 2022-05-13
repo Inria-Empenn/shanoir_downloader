@@ -32,6 +32,8 @@ Note that when downloading from a search text, the tool will only take the 50 fi
 
 Note that the timeout is 4 minutes by default (an timout error is thrown when the download takes more than 4 minutes or the server does not answer within 4 minutes). Use the `--timeout` argument to increase (or decrease) this duration (useful for big datasets).
 
+Note that the `--expert_mode` argument enables to create a advanced search (for a specific subject or study with the format `subjectName:JohnDoe AND studyName:Study01`). Without the expert mode, shanoir will return all datasets containing one of the term in one of their field. See section [Search usage](#search-usage) below for more information.
+
 See `python shanoir_downloader_check.py --help` for more information. 
 
 You might want to skip the anonymization process and the encryption process with the `--skip_anonymization` and `--skip_encryption` arguments respectively (or `-sa` and `-se`).
@@ -49,6 +51,24 @@ You can also download datasets from a [SolR search](https://shanoir.irisa.fr/sha
 `python shanoir_downloader.py -u amasson -d shanoir.irisa.fr -of /data/amasson/test/shanoir_test4 --search_text "FLAIR" -p 1 -s 2 `
 
 where `--search_text` is the string you would use on [the SolR search page](https://shanoir.irisa.fr/shanoir-ng/solr-search) (for example `(subjectName:(CT* OR demo*) AND studyName:etude test) OR datasetName:*flair*`). More information on the info box of the SolR search page.
+
+### Search usage
+
+The `--search_text` and `--expert_mode` arguments work as on the [Shanoir search page](https://shanoir.irisa.fr/shanoir-ng/solr-search).
+
+Without expert mode, shanoir will return all datasets containing one of the search term in one of their field.
+
+With expert mode, shanoir will perform a Solr search enabling to retrieve specific datasets.
+
+For example, the query `(subjectName:(CT* OR demo*) AND studyName:etude test) OR datasetName:*flair*` will return all datasets in the study "etude test" with a subject name that either starts with "CT" or starts with "demo", and any dataset which contain "flair" in its name.
+
+Case is insentitive for values.
+
+You can exclude terms with `- .`, for exemple `(*:* -datasetName:*localizer* AND -datasetName:*scout*)` will return all existing datasets except those which have "localizer" or "scout" in their name.
+
+The present field names are : `studyName, datasetName, subjectName, datasetName, datasetStartDate, datasetEndDate, examinationComment, datasetType, datasetNature, sliceThickness, pixelBandwidth, magneticFieldStrength, tags`
+
+For further information, see the [Solr official documentation](https://solr.apache.org/guide/6_6/the-standard-query-parser.html).
 
 ## Password management
 
