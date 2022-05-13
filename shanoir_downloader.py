@@ -220,7 +220,6 @@ def refresh_access_token(config):
 
 def perform_rest_request(config, rtype, url, **kwargs):
 	response = None
-	
 	if rtype == 'get':
 		response = requests.get(url, proxies=config['proxies'], verify=config['verify'], timeout=config['timeout'], **kwargs)
 	elif rtype == 'post':
@@ -250,8 +249,12 @@ def rest_request(config, rtype, url, raise_for_status=True, **kwargs):
 		response.raise_for_status()
 	return response
 
-def log_response(response):
-	logging.error(f'Response status code: {response.status_code}, reason: {response.reason}, error: {response.error}')
+def log_response(e):
+	logging.error(f'Response status code: {e.response.status_code}')
+	logging.error(f'		 reason: {e.response.reason}')
+	logging.error(f'		 text: {e.response.text}')
+	logging.error(f'		 headers: {e.response.headers}')
+	logging.error(str(e))
 	return
 
 # perform a GET request on the given url, asks for a new access token if the current one is outdated
@@ -286,6 +289,9 @@ def download_dataset(config, dataset_id, file_format):
 	return
 
 def download_datasets(config, dataset_ids, file_format):
+	if len(dataset_ids) > 50:
+		logging.warning('Cannot download more than 50 datasets at once. Please use the --search_text option instead to download the datasets one by one.')
+		return
 	print('Downloading datasets', dataset_ids)
 	file_format = 'nii' if file_format == 'nifti' else 'dcm'
 	dataset_ids = ','.join([str(dataset_id) for dataset_id in dataset_ids])
@@ -360,8 +366,7 @@ def download_datasets_from_ids(args):
 			if study_id != '' and subject_id != '':
 				download_dataset_by_subject_id_study_id(config, subject_id, study_id, file_format)
 	except requests.HTTPError as e:
-		logging.error(f'Response status code: {e.response.status_code}, reason: {e.response.reason}, error: {e.response.error}')
-		logging.error(str(e))
+		log_response(e)
 	except requests.RequestException as e:
 		logging.error(str(e))
 	except Exception as e:
@@ -425,9 +430,7 @@ def download_search_results(config, args, response):
 			try:
 				download_dataset(config, item['datasetId'], args.format)
 			except requests.HTTPError as e:
-				error_message = e.response.error if hasattr(e.response, 'error') else ''
-				logging.error(f'Response status code: {e.response.status_code}, reason: {e.response.reason}, error: {error_message}')
-				logging.error(str(e))
+				log_response(e)
 			except requests.RequestException as e:
 				logging.error(str(e))
 			except Exception as e:
