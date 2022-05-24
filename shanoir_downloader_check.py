@@ -254,7 +254,7 @@ while len(datasets_to_download) > 0:
 		
 		patient_name_in_dicom = None
 		series_description_in_dicom = None
-		verified = False
+		verified = None
 
 		if shanoir_name is not None and series_description is not None:
 			# Read the PatientName from the first file, make sure it corresponds to the shanoir_name
@@ -276,7 +276,7 @@ while len(datasets_to_download) > 0:
 				if series_description_in_dicom.replace(' ', '') != series_description.replace(' ', ''): 	# or if ds[0x0008, 0x103E].value != series_description:
 					message = f'Series description {series_description} differs in dicom: {series_description_in_dicom}'
 					logging.error(f'For dataset {sequence_id}: {message}')
-					verified = verified_datasets is not None and len(verified_datasets[(verified_datasets.index == sequence_id) & (verified_datasets.series_description == series_description) & (verified_datasets.series_description_in_dicom == series_description_in_dicom)]) > 0
+					verified = verified_datasets is not None and verified is not False and len(verified_datasets[(verified_datasets.index == sequence_id) & (verified_datasets.series_description == series_description) & (verified_datasets.series_description_in_dicom == series_description_in_dicom)]) > 0
 					# missing_datasets = add_missing_dataset(missing_datasets, sequence_id, 'content_series_description', f'Series description {series_description} differs in dicom: {ds.SeriesDescription}', raw_folder)
 					# continue
 			except Exception as e:
