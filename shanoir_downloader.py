@@ -15,11 +15,17 @@ def create_arg_parser(description="""Shanoir downloader"""):
 	parser = argparse.ArgumentParser(prog=__file__, description=description, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 	return parser
 
-def add_common_arguments(parser):
+def add_username_argument(parser):
 	parser.add_argument('-u', '--username', required=True, help='Your shanoir username.')
+
+def add_output_folder_argument(parser):
+	parser.add_argument('-of', '--output_folder', required=True, help='The destination folder where files will be downloaded.')
+
+def add_common_arguments(parser):
+	add_username_argument(parser)
 	parser.add_argument('-d', '--domain', default='shanoir.irisa.fr', help='The shanoir domain to query.')
 	parser.add_argument('-f', '--format', default='nifti', choices=['nifti', 'dicom'], help='The format to download.')
-	parser.add_argument('-of', '--output_folder', required=True, help='The destination folder where files will be downloaded.')
+	add_output_folder_argument(parser)
 
 def add_search_arguments(parser):
 	parser.add_argument('-p', '--page', help='Number of the result page to return.', default=0)
@@ -43,6 +49,11 @@ def add_ids_arguments(parser):
 	parser.add_argument('-stid', '--study_id', default='', help='The study id to download.')
 	parser.add_argument('-sbid', '--subject_id', default='', help='The subject id to download.')
 	return
+
+def add_shanoir2bids_common_arguments(parser):
+	"""	Specific version of the arguments for the shanoir2bids script. Re-uses the username and output folder. """
+	add_username_argument(parser)
+	add_output_folder_argument(parser)
 
 def init_logging(args):
 
@@ -338,7 +349,7 @@ def download_datasets_from_ids(args):
 	dataset_ids = Path(args.dataset_ids) if args.dataset_ids else None
 	if args.dataset_ids and not dataset_ids.exists():
 		sys.exit('Error: given file does not exist: ' + str(dataset_ids))
-	study_id = args.study_id
+	study_id = args.shanoir_study_id
 	subject_id = args.subject_id
 
 	if not dataset_ids and dataset_id == '' and study_id == '' and subject_id == '':
