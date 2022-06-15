@@ -1,49 +1,24 @@
 #!/usr/bin/env python3
-"""
+DESCRIPTION = """
 shanoir2bids.py is a script that allows to download a Shanoir dataset and organise it as a BIDS data structure.
                 The script is made to run for every project given some information provided by the user into a ".json"
-                configuration file. More information below.
-
-Usage:
-shanoir2bids.py -c <json_file> [-d <dl_dir>]
-
- Options:
-    -h, --help         Show this message.
-    --version          Print the version.
-
-    -c, --json_file=<json_file>  Path to the .json configuration file specifying parameters for shanoir downloading.
-    -d, --dl_dir=<dl_dir>        Path to the download directory. Where files will be saved.
-
------------------------------[.json configuration file information]-------------------------------
-This file will tell the script what Shanoir datasets should be downloaded and how the data will be organised.
-The dictionary in the json file must have four keys :
-"shanoir_id"  : str, your Shanoir login
-"study_name"  : str, the Shanoir study ID
-"subjects"    : list of str, a list of Shanoir subjects
-"data_to_bids": list of dict, each dictionary specifies datasets to download and BIDS format with the following keys :
-    -> "datasetName": str, Shanoir name for the sequence to search
-    -> "bidsDir"    : str, BIDS subdirectory sequence name (eg : "anat", "func" or "dwi", ...)
-    -> "bidsName"   : str, BIDS sequence name (eg: "t1w-mprage", "t2-hr", "cusp66-ap-b0", ...)
-See example "s2b_example_config.json"
-"""
+                configuration file. More details regarding the configuration file in the Readme.md"""
 # Script to download and BIDS-like organize data on Shanoir using "shanoir_downloader.py" developed by Arthur Masson
-# @Author: Malo Gaubert <malo.gaubert@irisa.fr>, Quentin Duché <quentin.duche@irisa.fr>
+# @Author: Quentin Duché <quentin.duche@irisa.fr>, Malo Gaubert <malo.gaubert@irisa.fr>
 # @Date: 14 Juin 2022
-# todo : 1. dotenv.loadenv() (my script and shanoir_downloader.py) pour gerer le login shanoir
-# todo : 2. Double configuration file (foutre dans le Readme.md)
-# todo : 3. Abandonner docopt au profit de choses bcp plus optimales
-
-import docopt
 import os
 import sys
 import zipfile
 import json
+import shanoir_downloader
+from dotenv import load_dotenv
 from pathlib import Path
-import shanoir_downloader as sd
-from os.path import join as opj, splitext as ops, exists as ope
+from os.path import join as opj, splitext as ops, exists as ope, dirname as opd
 from glob import glob
 from time import time
 
+# Load environment variables
+load_dotenv(dotenv_path=opj(opd(__file__), '.env'))
 
 def banner_msg(msg):
     """
@@ -55,67 +30,88 @@ def banner_msg(msg):
 
 
 # Keys for json configuration file
-K_JSON_SHANOIR_ID = 'shanoir_id'
 K_JSON_STUDY_NAME = "study_name"
 K_JSON_L_SUBJECTS = "subjects"
 K_JSON_DATA_DICT = "data_to_bids"
-LIST_KEYS_JSON = [K_JSON_SHANOIR_ID, K_JSON_STUDY_NAME, K_JSON_L_SUBJECTS, K_JSON_DATA_DICT]
+LIST_KEYS_JSON = [K_JSON_STUDY_NAME, K_JSON_L_SUBJECTS, K_JSON_DATA_DICT]
 
 # Define keys for data dictionary
 K_BIDS_NAME = 'bidsName'
 K_BIDS_DIR = 'bidsDir'
 K_DS_NAME = 'datasetName'
 
-# Define Extensions that are dealt so far by
+# Define Extensions that are dealt so far by (#todo : think of other possible extensions ?)
 NIFTI = '.nii'
 NIIGZ = '.nii.gz'
 JSON = '.json'
 BVAL = '.bval'
 BVEC = '.bvec'
 
+# Shanoir parameters
+SHANOIR_FILE_TYPE = 'nifti'  # alternative 'dicom'
+
+
+def read_json_config_file(json_file):
+    """
+    Reads a json configuration file and checks whether mandatory keys for specifying the transformation from a
+    Shanoir dataset to a BIDS dataset is present.
+    :param json_file: str, path to a json configuration file
+    :return:
+    """
+    f = open(json_file)
+    data = json.load(f)
+    # Check keys
+    for key in data.keys():
+        if not key in LIST_KEYS_JSON:
+            print('Unknown key "{}" for data dictionary'.format(key))
+    for key in LIST_KEYS_JSON:
+        if not key in data.keys():
+            sys.exit('Error, missing key "{}" in data dictionary'.format(key))
+    # Set the fields for the instance of the class
+    study_id = data[K_JSON_STUDY_NAME]
+    subjects = data[K_JSON_L_SUBJECTS]
+    data_dict = data[K_JSON_DATA_DICT]
+    return study_id, subjects, data_dict
+
 
 class DownloadShanoirDatasetToBIDS:
+    """
+    class that handles the downloading of shanoir data set and the reformatting as a BIDS data structure
+    """
     def __init__(self):
-        self.subjects = None
-        self.data_dict = None
-        self.shanoir_id = None
-        self.study_id = None
-        self.dl_dir = None
+        """
+        Initialize the class instance
+        """
+        self.shanoir_subjects = None  # List of Shanoir subjects
+        self.shanoir2bids_dict = None  # Dictionary specifying how to reformat data into BIDS structure
+        self.shanoir_username = None  # Shanoir username
+        self.shanoir_study_id = None  # Shanoir study ID
+        self.dl_dir = None  # download directory, where data will be stored
         self.parser = None  # Shanoir Downloader Parser
-        self.file_type = 'nifti'  # alternative 'dicom'
+        self.n_seq = 0  # Number of sequences in the shanoir2bids_dict
 
     def set_json_config_file(self, json_file):
         """
         Sets the configuration for the download through a json file
-        :param json_file:
-        :return:
+        :param json_file: str, path to the json_file
         """
-        f = open(json_file)
-        data = json.load(f)
-        # Check keys
-        for k in data.keys():
-            if not k in LIST_KEYS_JSON:
-                print('Unknown key "{}" for data dictionary'.format(k))
-        for k in LIST_KEYS_JSON:
-            if not k in data.keys():
-                sys.exit('Error, missing key "{}" in data dictionary'.format(k))
-        # Set the fields for the instance of the class
-        self.set_shanoir_id(shanoir_id=data[K_JSON_SHANOIR_ID])
-        self.set_study_id(study_id=data[K_JSON_STUDY_NAME])
-        self.set_subjects(subjects=data[K_JSON_L_SUBJECTS])
-        self.set_data_dict(data_dict=data[K_JSON_DATA_DICT])
+        study_id, subjects, data_dict = read_json_config_file(json_file=json_file)
+        self.set_shanoir_study_id(study_id=study_id)
+        self.set_shanoir_subjects(subjects=subjects)
+        self.set_shanoir2bids_dict(data_dict=data_dict)
 
-    def set_study_id(self, study_id):
-        self.study_id = study_id
+    def set_shanoir_study_id(self, study_id):
+        self.shanoir_study_id = study_id
 
-    def set_shanoir_id(self, shanoir_id):
-        self.shanoir_id = shanoir_id
+    def set_shanoir_username(self, shanoir_username):
+        self.shanoir_username = shanoir_username
 
-    def set_subjects(self, subjects):
-        self.subjects = subjects
+    def set_shanoir_subjects(self, subjects):
+        self.shanoir_subjects = subjects
 
-    def set_data_dict(self, data_dict):
-        self.data_dict = data_dict
+    def set_shanoir2bids_dict(self, data_dict):
+        self.shanoir2bids_dict = data_dict
+        self.n_seq = len(self.shanoir2bids_dict)
 
     def set_download_directory(self, dl_dir):
         self.dl_dir = dl_dir
@@ -124,66 +120,65 @@ class DownloadShanoirDatasetToBIDS:
         """
         Configure the parser and the configuration of the shanoir_downloader
         """
-        self.parser = sd.create_arg_parser()
-        sd.add_common_arguments(self.parser)
-        sd.add_configuration_arguments(self.parser)
-        sd.add_search_arguments(self.parser)
-        sd.add_ids_arguments(self.parser)
+        self.parser = shanoir_downloader.create_arg_parser()
+        shanoir_downloader.add_common_arguments(self.parser)
+        shanoir_downloader.add_configuration_arguments(self.parser)
+        shanoir_downloader.add_search_arguments(self.parser)
+        shanoir_downloader.add_ids_arguments(self.parser)
 
     def download_subject(self, subject_to_search):
         """
-
+        For a single subject
+        1. Downloads the Shanoir datasets
+        2. Reorganises the Shanoir dataset as BIDS format as defined in the json configuration file provided by user
         :param subject_to_search:
         :return:
         """
         banner_msg("Downloading subject " + subject_to_search)
 
         # Loop on each sequence defined in the dictionary
-        for seq in range(len(self.data_dict)):
+        for seq in range(self.n_seq):
             # Isolate elements that are called many times
-            shanoir_seq_name = self.data_dict[seq][K_DS_NAME]  # Shanoir sequence name (OLD)
-            bids_seq_subdir = self.data_dict[seq][K_BIDS_DIR]  # Sequence BIDS subdirectory name (NEW)
-            bids_seq_name = self.data_dict[seq][K_BIDS_NAME]  # Sequence BIDS nickname (NEW)
+            shanoir_seq_name = self.shanoir2bids_dict[seq][K_DS_NAME]  # Shanoir sequence name (OLD)
+            bids_seq_subdir = self.shanoir2bids_dict[seq][K_BIDS_DIR]  # Sequence BIDS subdirectory name (NEW)
+            bids_seq_name = self.shanoir2bids_dict[seq][K_BIDS_NAME]  # Sequence BIDS nickname (NEW)
 
             # Print message concerning the sequence that is being downloaded
-            print('\t-', bids_seq_name, subject_to_search, '[' + str(seq + 1) + '/' + str(len(self.data_dict)) + ']')
+            print('\t-', bids_seq_name, subject_to_search, '[' + str(seq + 1) + '/' + str(self.n_seq) + ']')
 
             # Initialize the parser
             args = self.parser.parse_args(
-                ['-u', self.shanoir_id,
+                ['-u', self.shanoir_username,
                  '-d', 'shanoir.irisa.fr',
                  '-of', self.dl_dir,
                  '-em',
-                 '-st', 'studyName:' + self.study_id +
+                 '-st', 'studyName:' + self.shanoir_study_id +
                  ' AND datasetName:\"' + shanoir_seq_name +
                  '\" AND subjectName:' + subject_to_search,
                  '-s', '200',
-                 '-f', self.file_type,
+                 '-f', SHANOIR_FILE_TYPE,
                  '-so', 'id,ASC',
                  '-t', '500'])  # Increase time out for heavy files
 
-            config = sd.initialize(args)
-            response = sd.solr_search(config, args)
+            config = shanoir_downloader.initialize(args)
+            response = shanoir_downloader.solr_search(config, args)
 
             # From response, process the data
             # Print the number of items found and a list of these items
             if response.status_code == 200:
-                print('\n SEQUENCE == ' + shanoir_seq_name + '\nnumber of items found: ' +
-                      str(len(response.json()['content'])))
+                # print('\n SEQUENCE == ' + shanoir_seq_name + '\nnumber of items found: ' +
+                #       str(len(response.json()['content'])))
 
-                for item in response.json()['content']:
-                    print('Subject ID: ' + item['subjectName'] + ' - Dataset Name:' + item["datasetName"])
-
-                # Download all by default (there was a user choice required before here)
+                # for item in response.json()['content']:
+                    #print('Subject ID: ' + item['subjectName'] + ' - Dataset Name:' + item["datasetName"])
 
                 # Invoke shanoir_downloader to download all the data
-                sd.download_search_results(config, args, response)
+                shanoir_downloader.download_search_results(config, args, response)
 
                 # Organize in BIDS like specifications and rename files
                 for item in response.json()['content']:
                     # ID of the subject (sub-*)
                     subject_id = 'sub-' + item['subjectName']
-                    print('Processing ' + subject_id)
 
                     # Subject BIDS directory
                     subject_dir = opj(self.dl_dir, subject_id)
@@ -224,9 +219,9 @@ class DownloadShanoirDatasetToBIDS:
                         filename, ext = ops(f)  # os.path.splitext to get extension
                         if ext == NIFTI:
                             # In special case of a nifti file, gzip it
-                            cmd = "gzip " + r'"{}"'.format(f)
+                            cmd = "gzip " + r'"{}"'.format(f)  # todo : use a lib
                             os.system(cmd)
-                            # And update variables
+                            # And update variables. Filename as now '.nii.gz' extension
                             f = filename + NIIGZ
                             ext = NIIGZ
 
@@ -263,11 +258,11 @@ class DownloadShanoirDatasetToBIDS:
 
     def download(self):
         """
-        Go download the required datasets
+        Loop over the Shanoir subjects and go download the required datasets
         :return:
         """
         self.configure_parser()  # Configure the shanoir_downloader parser
-        for subject_to_search in self.subjects:
+        for subject_to_search in self.shanoir_subjects:
             t_start_subject = time()
             self.download_subject(subject_to_search=subject_to_search)
             duration = int((time() - t_start_subject) // 60)
@@ -276,25 +271,35 @@ class DownloadShanoirDatasetToBIDS:
 
 
 def main():
-    # Read arguments from the command line
-    args = docopt.docopt(__doc__)
-    config_file = args['--json_file']  # Retrieve configuration filename
-    download_dir = args['--dl_dir']  # Get download directory
+    # Parse argument for the script
+    parser = shanoir_downloader.create_arg_parser(description=DESCRIPTION)
+    # Use username and output folder arguments from shanoir_downloader
+    shanoir_downloader.add_shanoir2bids_common_arguments(parser)
+    parser.add_argument('-j', '--config_file', required=True, help='Path to the .json configuration file specifying parameters for shanoir downloading.')
+    args = parser.parse_args()
 
-    if not download_dir:
+    # Check the content of the configuration file
+    study_id, subjects, data_dict = read_json_config_file(args.config_file)
+
+    # Check existence of output folder and create a default output folder otherwise
+    if not args.output_folder:
         from datetime import datetime
         # Set default download directory
-        download_dir = "shanoir_2_bids_download_" + datetime.now().strftime("%Y_%m_%d__%Hh%Mm%Ss")
+        dt = datetime.now().strftime("%Y_%m_%d__%Hh%Mm%Ss")
+        output_folder = "shanoir2bids_download_" + data_dict[K_JSON_STUDY_NAME] + '_' + dt
         print('A NEW DEFAULT directory is created as you did not provide a download directory (-d option)')
-        print('\t :' + download_dir)
-        os.mkdir(download_dir)
+        print('\t :' + output_folder)
+        os.mkdir(output_folder)
     else:
-        if not ope(download_dir):
-            Path(download_dir).mkdir(parents=True, exist_ok=True)
+        if not ope(args.output_folder):
+            Path(args.output_folder).mkdir(parents=True, exist_ok=True)
 
     stb = DownloadShanoirDatasetToBIDS()
-    stb.set_json_config_file(json_file=config_file)
-    stb.set_download_directory(dl_dir=download_dir)
+    stb.set_shanoir_username(args.username)
+    stb.set_shanoir_study_id(study_id=study_id)
+    stb.set_shanoir_subjects(subjects=subjects)
+    stb.set_shanoir2bids_dict(data_dict=data_dict)
+    stb.set_download_directory(dl_dir=args.output_folder)
     stb.download()
 
 
