@@ -18,8 +18,8 @@ def create_arg_parser(description="""Shanoir downloader"""):
 def add_username_argument(parser):
 	parser.add_argument('-u', '--username', required=True, help='Your shanoir username.')
 
-def add_output_folder_argument(parser):
-	parser.add_argument('-of', '--output_folder', required=True, help='The destination folder where files will be downloaded.')
+def add_output_folder_argument(parser, required=True):
+	parser.add_argument('-of', '--output_folder', required=required, help='The destination folder where files will be downloaded.')
 
 def add_common_arguments(parser):
 	add_username_argument(parser)
@@ -53,7 +53,7 @@ def add_ids_arguments(parser):
 def add_shanoir2bids_common_arguments(parser):
 	"""	Specific version of the arguments for the shanoir2bids script. Re-uses the username and output folder. """
 	add_username_argument(parser)
-	add_output_folder_argument(parser)
+	add_output_folder_argument(parser, required=False)
 
 def init_logging(args):
 
