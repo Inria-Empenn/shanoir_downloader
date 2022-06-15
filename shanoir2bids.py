@@ -227,6 +227,7 @@ class DownloadShanoirDatasetToBIDS:
 
                         # Let's process and rename the file
                         # Todo : try to make the difference between multiple sequences and multiple downloads
+                        # Compare the contents of the associated json file between previous and new file "AcquisitionTime"
                         if ext in [NIIGZ, JSON, BVAL, BVEC]:
                             bids_filename = seq_name(extension=ext, run_num=0)
                             list_existing_f_ext = glob(opj(bids_data_dir, bids_data_basename + '*' + ext))
@@ -275,31 +276,34 @@ def main():
     parser = shanoir_downloader.create_arg_parser(description=DESCRIPTION)
     # Use username and output folder arguments from shanoir_downloader
     shanoir_downloader.add_shanoir2bids_common_arguments(parser)
+    # Add the argument for the configuration file
     parser.add_argument('-j', '--config_file', required=True, help='Path to the .json configuration file specifying parameters for shanoir downloading.')
+    # Parse arguments
     args = parser.parse_args()
 
-    # Check the content of the configuration file
-    study_id, subjects, data_dict = read_json_config_file(args.config_file)
+    # Read and check the content of the configuration file
+    shanoir_study_id, shanoir_subjects, shanoir_data2bids_dict = read_json_config_file(args.config_file)
 
     # Check existence of output folder and create a default output folder otherwise
     if not args.output_folder:
         from datetime import datetime
         # Set default download directory
         dt = datetime.now().strftime("%Y_%m_%d__%Hh%Mm%Ss")
-        output_folder = "shanoir2bids_download_" + data_dict[K_JSON_STUDY_NAME] + '_' + dt
-        print('A NEW DEFAULT directory is created as you did not provide a download directory (-d option)')
-        print('\t :' + output_folder)
-        os.mkdir(output_folder)
+        output_folder = "shanoir2bids_download_" + shanoir_study_id + '_' + dt
+        print('A NEW DEFAULT directory is created as you did not provide a download directory (-d option)\n\t' + output_folder)
     else:
-        if not ope(args.output_folder):
-            Path(args.output_folder).mkdir(parents=True, exist_ok=True)
+        output_folder = args.output_folder
+
+    # Create directory if it does not exist
+    if not ope(output_folder):
+        Path(output_folder).mkdir(parents=True, exist_ok=True)
 
     stb = DownloadShanoirDatasetToBIDS()
     stb.set_shanoir_username(args.username)
-    stb.set_shanoir_study_id(study_id=study_id)
-    stb.set_shanoir_subjects(subjects=subjects)
-    stb.set_shanoir2bids_dict(data_dict=data_dict)
-    stb.set_download_directory(dl_dir=args.output_folder)
+    stb.set_shanoir_study_id(study_id=shanoir_study_id)
+    stb.set_shanoir_subjects(subjects=shanoir_subjects)
+    stb.set_shanoir2bids_dict(data_dict=shanoir_data2bids_dict)
+    stb.set_download_directory(dl_dir=output_folder)
     stb.download()
 
 
