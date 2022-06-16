@@ -18,9 +18,10 @@ Optionally, rename the `.env.example` to `.env` and set the variables (`shanoir_
 
 ## Usage
 
-There are two scripts to download datasets:
+There are three scripts to download datasets:
  - `shanoir_downloader.py` simply downloads datasets from a id, a list of ids, or directly from a [shanoir search as on the shanoir solr search page](https://shanoir.irisa.fr/shanoir-ng/solr-search),
  - `shanoir_downloader_check.py` is a more complete tool ; it enables to download datasets (from a csv or excel file containing a list of dataset ids, or directly from a [shanoir search as on the shanoir solr search page](https://shanoir.irisa.fr/shanoir-ng/solr-search)), verify their content, anonymize them and / or encrypt them.
+ - `shanoir2bids.py` uses `shanoir_downloader.py` to download Shanoir datasets and reorganises them into a BIDS data structure that is specified by the user with a `.json` configuration file. An example of configuration file is provided `s2b_example_config.json`. 
 
 `shanoir_downloader_check.py` creates two files in the output folder:
  - `downloaded_datasets.csv` records the successfully downloaded datasets,
@@ -38,6 +39,20 @@ See `python shanoir_downloader_check.py --help` for more information.
 
 You might want to skip the anonymization process and the encryption process with the `--skip_anonymization` and `--skip_encryption` arguments respectively (or `-sa` and `-se`).
 
+For `shanoir2bids.py`, a configuration file must be provided to transform a Shanoir dataset into a BIDS dataset.
+```
+-----------------------------[.json configuration file information]-------------------------------
+This file will tell the script what Shanoir datasets should be downloaded and how the data will be organised.
+The dictionary in the json file must have four keys :
+
+"study_name"  : str, the Shanoir study ID
+"subjects"    : list of str, a list of Shanoir subjects
+"data_to_bids": list of dict, each dictionary specifies datasets to download and BIDS format with the following keys :
+    -> "datasetName": str, Shanoir name for the sequence to search
+    -> "bidsDir"    : str, BIDS subdirectory sequence name (eg : "anat", "func" or "dwi", ...)
+    -> "bidsName"   : str, BIDS sequence name (eg: "t1w-mprage", "t2-hr", "cusp66-ap-b0", ...)
+```
+An example is provided in the file `s2b_example_config.json`
 ### Example usage
 
 To download datasets, verify the content of them, anonymize them and / or encrypt them you can use a command like:
@@ -51,6 +66,8 @@ You can also download datasets from a [SolR search](https://shanoir.irisa.fr/sha
 `python shanoir_downloader.py -u amasson -d shanoir.irisa.fr -of /data/amasson/test/shanoir_test4 --search_text "FLAIR" -p 1 -s 2 `
 
 where `--search_text` is the string you would use on [the SolR search page](https://shanoir.irisa.fr/shanoir-ng/solr-search) (for example `(subjectName:(CT* OR demo*) AND studyName:etude test) OR datasetName:*flair*`). More information on the info box of the SolR search page.
+
+`python shanoir2bids.py -c s2b_example_config.json -d my_download_dir` will download Shanoir files identified in the configuration file and saves them as a BIDS data structure into `my_download_dir`
 
 ### Search usage
 

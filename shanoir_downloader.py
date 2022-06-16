@@ -15,11 +15,17 @@ def create_arg_parser(description="""Shanoir downloader"""):
 	parser = argparse.ArgumentParser(prog=__file__, description=description, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 	return parser
 
-def add_common_arguments(parser):
+def add_username_argument(parser):
 	parser.add_argument('-u', '--username', required=True, help='Your shanoir username.')
+
+def add_output_folder_argument(parser, required=True):
+	parser.add_argument('-of', '--output_folder', required=required, help='The destination folder where files will be downloaded.')
+
+def add_common_arguments(parser):
+	add_username_argument(parser)
 	parser.add_argument('-d', '--domain', default='shanoir.irisa.fr', help='The shanoir domain to query.')
 	parser.add_argument('-f', '--format', default='nifti', choices=['nifti', 'dicom'], help='The format to download.')
-	parser.add_argument('-of', '--output_folder', required=True, help='The destination folder where files will be downloaded.')
+	add_output_folder_argument(parser)
 
 def add_search_arguments(parser):
 	parser.add_argument('-p', '--page', help='Number of the result page to return.', default=0)
