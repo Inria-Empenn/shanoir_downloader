@@ -21,7 +21,7 @@ Optionally, rename the `.env.example` to `.env` and set the variables (`shanoir_
 There are three scripts to download datasets:
  - `shanoir_downloader.py` simply downloads datasets from a id, a list of ids, or directly from a [shanoir search as on the shanoir solr search page](https://shanoir.irisa.fr/shanoir-ng/solr-search),
  - `shanoir_downloader_check.py` is a more complete tool ; it enables to download datasets (from a csv or excel file containing a list of dataset ids, or directly from a [shanoir search as on the shanoir solr search page](https://shanoir.irisa.fr/shanoir-ng/solr-search)), verify their content, anonymize them and / or encrypt them.
- - `shanoir2bids.py` uses `shanoir_downloader.py` to download Shanoir datasets and reorganises them into a BIDS data structure that is specified by the user with a `.json` configuration file. More information about how to write the configuration file are obtained in the `-h --help` of the script. Otherwise, you can refer and adapt to the example file `s2b_example_config.json`." 
+ - `shanoir2bids.py` uses `shanoir_downloader.py` to download Shanoir datasets and reorganises them into a BIDS data structure that is specified by the user with a `.json` configuration file. An example of configuration file is provided `s2b_example_config.json`. 
 
 `shanoir_downloader_check.py` creates two files in the output folder:
  - `downloaded_datasets.csv` records the successfully downloaded datasets,
