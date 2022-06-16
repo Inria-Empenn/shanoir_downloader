@@ -50,11 +50,6 @@ def add_ids_arguments(parser):
 	parser.add_argument('-sbid', '--subject_id', default='', help='The subject id to download.')
 	return
 
-def add_shanoir2bids_common_arguments(parser):
-	"""	Specific version of the arguments for the shanoir2bids script. Re-uses the username and output folder. """
-	add_username_argument(parser)
-	add_output_folder_argument(parser, required=False)
-
 def init_logging(args):
 
 	verbose = args.verbose

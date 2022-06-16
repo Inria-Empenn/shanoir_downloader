@@ -275,7 +275,8 @@ def main():
     # Parse argument for the script
     parser = shanoir_downloader.create_arg_parser(description=DESCRIPTION)
     # Use username and output folder arguments from shanoir_downloader
-    shanoir_downloader.add_shanoir2bids_common_arguments(parser)
+    shanoir_downloader.add_username_argument(parser)
+    shanoir_downloader.add_output_folder_argument(parser, required=False)
     # Add the argument for the configuration file
     parser.add_argument('-j', '--config_file', required=True, help='Path to the .json configuration file specifying parameters for shanoir downloading.')
     # Parse arguments
