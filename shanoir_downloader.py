@@ -344,7 +344,7 @@ def download_datasets_from_ids(args):
 	dataset_ids = Path(args.dataset_ids) if args.dataset_ids else None
 	if args.dataset_ids and not dataset_ids.exists():
 		sys.exit('Error: given file does not exist: ' + str(dataset_ids))
-	study_id = args.shanoir_study_id
+	study_id = args.study_id
 	subject_id = args.subject_id
 
 	if not dataset_ids and dataset_id == '' and study_id == '' and subject_id == '':
