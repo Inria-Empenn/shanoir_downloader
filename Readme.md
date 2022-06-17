@@ -4,7 +4,7 @@ Shanoir downloader enables to download datasets, check that the downloaded DICOM
 
 See `python shanoir_downloader_check.py --help` for usage information.
 
-Other tool to download and reorganize data as BIDS-like specification: https://gitlab.inria.fr/mgaubert/download-data-on-shanoir
+The scripts `convert_dicoms_to_niftis.py` and `create_previews.py` enable to convert dicoms to niftis and create png previews of the nifti files.
 
 ## Install
 
@@ -53,6 +53,7 @@ The dictionary in the json file must have four keys :
     -> "bidsName"   : str, BIDS sequence name (eg: "t1w-mprage", "t2-hr", "cusp66-ap-b0", ...)
 ```
 An example is provided in the file `s2b_example_config.json`
+
 ### Example usage
 
 To download datasets, verify the content of them, anonymize them and / or encrypt them you can use a command like:

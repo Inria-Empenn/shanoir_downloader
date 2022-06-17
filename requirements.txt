@@ -23,3 +23,6 @@ tqdm==4.62.3
 typing_extensions==4.0.1
 urllib3==1.26.7
 zipp==3.6.0
+dicom2nifti==2.3.0
+Pillow==9.0.0
+SimpleITK==2.1.1.2

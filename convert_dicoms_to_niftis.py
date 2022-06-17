@@ -56,7 +56,7 @@ def convert_dicom_to_nifti(dicom_directory, conversion_info):
 
     for i, command in enumerate(commands):
         conversion_tool = commandNames[i]
-        reoriented = False
+        reconverted = False
         try:
             command()
         except:
@@ -65,8 +65,8 @@ def convert_dicom_to_nifti(dicom_directory, conversion_info):
         if image_path is None: continue
         image_converted = image_is_readable(image_path)
         if image_converted: break
-        call([animaConvertImage, '-i', image_path, '-R', 'AXIAL', '-o', image_path])
-        reoriented = True
+        call([animaConvertImage, '-i', image_path, '-o', image_path])
+        reconverted = True
         image_converted = image_is_readable(image_path)
         if image_converted: break
 
@@ -75,7 +75,7 @@ def convert_dicom_to_nifti(dicom_directory, conversion_info):
     else:
         print('ERROR: dicom could not be converted!', dicom_directory)
     
-    conversion_info.append({'path': str(dicom_parent), 'conversion_tool': conversion_tool, 'reoriented': reoriented, 'converted': image_converted})
+    conversion_info.append({'path': str(dicom_parent), 'conversion_tool': conversion_tool, 'reconverted': reconverted, 'converted': image_converted})
     save_conversion_tools(conversion_info)
     return dicom_parent
 
