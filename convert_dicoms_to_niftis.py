@@ -1,3 +1,4 @@
+import zipfile
 import logging
 import shutil
 from pathlib import Path
@@ -75,14 +76,14 @@ def convert_dicom_to_nifti(dicom_directory, output_folder):
         image_converted = image_is_readable(image_path)
         if image_converted: break
 
-    return image_converted, conversion_tool, reconverted, image_converted
+    return conversion_tool, reconverted, image_converted
 
 def convert_dicom_to_nifti_if_needed(dicom_directory, output_folder, keep_dicom, conversion_info):
 
     if str(output_folder) in [ci['path'] for ci in conversion_info]:
         return output_folder
     
-    image_converted, conversion_tool, reconverted, image_converted = convert_dicom_to_nifti(dicom_directory, output_folder)
+    conversion_tool, reconverted, image_converted = convert_dicom_to_nifti(dicom_directory, output_folder)
 
     if not keep_dicom:
         if image_converted:
@@ -107,5 +108,6 @@ for dicom in sorted(list(dicoms.iterdir())):
             logging.info(f'    Extracting {dicom_zip}...')
             dicom_folder = dicom_zip.parent / dicom_zip.stem
             dicom_folder.mkdir(exist_ok=True)
-            shutil.unpack_archive(str(dicom_zip), str(dicom_folder))
+            with zipfile.ZipFile(str(dicom_zip), 'r') as zip_ref:
+                zip_ref.extractall(str(dicom_folder))
             convert_dicom_to_nifti_if_needed(dicom_folder, dicom_folder.parent, args.keep_dicom, conversion_info)
