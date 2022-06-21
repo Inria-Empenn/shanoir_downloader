@@ -215,16 +215,21 @@ Search Text : "{}" """.format(search_txt)
                                 basename = bids_data_basename + extension
                             return opj(bids_data_dir, basename)
 
-                    # Rename every element in the list of files that was in the archive
-                    for f in list_unzipped_files:  # Loop over files in the archive
-                        filename, ext = ops(f)  # os.path.splitext to get extension
-                        if ext == NIFTI:
-                            # In special case of a nifti file, gzip it
-                            cmd = "gzip " + r'"{}"'.format(f)  # todo : use a lib
-                            os.system(cmd)
-                            # And update variables. Filename as now '.nii.gz' extension
-                            f = filename + NIIGZ
-                            ext = NIIGZ
+                        # Rename every element in the list of files that was in the archive
+                        for f in list_unzipped_files:  # Loop over files in the archive
+                            filename, ext = ops(f)  # os.path.splitext to get extension
+                            if ext == NIFTI:
+                                # In special case of a nifti file, gzip it
+                                cmd = "gzip " + r'"{}"'.format(f)  # todo : use a lib
+                                os.system(cmd)
+                                # And update variables. Filename as now '.nii.gz' extension
+                                f = filename + NIIGZ
+                                ext = NIIGZ
+                            if ext == '.gz':
+                                # os.path.splitext returns (filename.nii, '.gz') instead of (filename, '.nii.gz')
+                                # Just update filename and ext to be back in a case that is dealt by the program
+                                filename, ext = filename[:-4], NIIGZ
+                                f = filename + ext
 
                             # Let's process and rename the file
                             # Todo : try to make the difference between multiple sequences and multiple downloads
