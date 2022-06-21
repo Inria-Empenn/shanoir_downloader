@@ -147,14 +147,14 @@ class DownloadShanoirDatasetToBIDS:
             print('\t-', bids_seq_name, subject_to_search, '[' + str(seq + 1) + '/' + str(self.n_seq) + ']')
 
             # Initialize the parser
+            search_txt = 'studyName:' + self.shanoir_study_id + ' AND datasetName:\"' + shanoir_seq_name + \
+                         '\" AND subjectName:' + subject_to_search
             args = self.parser.parse_args(
                 ['-u', self.shanoir_username,
                  '-d', 'shanoir.irisa.fr',
                  '-of', self.dl_dir,
                  '-em',
-                 '-st', 'studyName:' + self.shanoir_study_id +
-                 ' AND datasetName:\"' + shanoir_seq_name +
-                 '\" AND subjectName:' + subject_to_search,
+                 '-st', search_txt,
                  '-s', '200',
                  '-f', SHANOIR_FILE_TYPE,
                  '-so', 'id,ASC',
@@ -166,53 +166,54 @@ class DownloadShanoirDatasetToBIDS:
             # From response, process the data
             # Print the number of items found and a list of these items
             if response.status_code == 200:
-                # print('\n SEQUENCE == ' + shanoir_seq_name + '\nnumber of items found: ' +
-                #       str(len(response.json()['content'])))
-
-                # for item in response.json()['content']:
-                    #print('Subject ID: ' + item['subjectName'] + ' - Dataset Name:' + item["datasetName"])
 
                 # Invoke shanoir_downloader to download all the data
                 shanoir_downloader.download_search_results(config, args, response)
 
-                # Organize in BIDS like specifications and rename files
-                for item in response.json()['content']:
-                    # ID of the subject (sub-*)
-                    subject_id = 'sub-' + item['subjectName']
+                if len(response.json()['content']) == 0:
+                    warn_msg = """WARNING ! The Shanoir request returned 0 result. Make sure the following search text returns 
+a result on the website.
+Search Text : "{}" """.format(search_txt)
+                    print(warn_msg)
+                else:
+                    # Organize in BIDS like specifications and rename files
+                    for item in response.json()['content']:
+                        # ID of the subject (sub-*)
+                        subject_id = 'sub-' + item['subjectName']
 
-                    # Subject BIDS directory
-                    subject_dir = opj(self.dl_dir, subject_id)
-                    # Prepare BIDS naming
-                    bids_data_dir = opj(subject_dir, bids_seq_subdir)
-                    bids_data_basename = '_'.join([subject_id, bids_seq_name])
+                        # Subject BIDS directory
+                        subject_dir = opj(self.dl_dir, subject_id)
+                        # Prepare BIDS naming
+                        bids_data_dir = opj(subject_dir, bids_seq_subdir)
+                        bids_data_basename = '_'.join([subject_id, bids_seq_name])
 
-                    # Create temp directory to make sure the directory is empty before
-                    tmp_dir = opj(self.dl_dir, 'temp_archive')
-                    Path(tmp_dir).mkdir(parents=True, exist_ok=True)
+                        # Create temp directory to make sure the directory is empty before
+                        tmp_dir = opj(self.dl_dir, 'temp_archive')
+                        Path(tmp_dir).mkdir(parents=True, exist_ok=True)
 
-                    # Create the directory of the subject
-                    Path(subject_dir).mkdir(parents=True, exist_ok=True)
-                    # And create the subdirectories (ignore if exists)
-                    Path(bids_data_dir).mkdir(parents=True, exist_ok=True)
+                        # Create the directory of the subject
+                        Path(subject_dir).mkdir(parents=True, exist_ok=True)
+                        # And create the subdirectories (ignore if exists)
+                        Path(bids_data_dir).mkdir(parents=True, exist_ok=True)
 
-                    # Extract the downloaded archive
-                    dl_archive = glob(opj(self.dl_dir, item['id'] + '*.zip'))[0]
-                    with zipfile.ZipFile(dl_archive, 'r') as zip_ref:
-                        zip_ref.extractall(tmp_dir)
-                    # Get the list of files in the archive
-                    list_unzipped_files = glob(opj(tmp_dir, '*'))
+                        # Extract the downloaded archive
+                        dl_archive = glob(opj(self.dl_dir, item['id'] + '*.zip'))[0]
+                        with zipfile.ZipFile(dl_archive, 'r') as zip_ref:
+                            zip_ref.extractall(tmp_dir)
+                        # Get the list of files in the archive
+                        list_unzipped_files = glob(opj(tmp_dir, '*'))
 
-                    def seq_name(extension, run_num=0):
-                        """
-                        Returns a BIDS filename with appropriate basename and potential suffix
-                        ext: extension ('.json' or '.nii.gz' or ...)
-                        run_num : int, if 0 no suffix, else adds suffix '_run-1' or '_run-2' etc...
-                        """
-                        if run_num > 0:
-                            basename = bids_data_basename + '_run-{0}{1}'.format(run_num, extension)
-                        else:
-                            basename = bids_data_basename + extension
-                        return opj(bids_data_dir, basename)
+                        def seq_name(extension, run_num=0):
+                            """
+                            Returns a BIDS filename with appropriate basename and potential suffix
+                            ext: extension ('.json' or '.nii.gz' or ...)
+                            run_num : int, if 0 no suffix, else adds suffix '_run-1' or '_run-2' etc...
+                            """
+                            if run_num > 0:
+                                basename = bids_data_basename + '_run-{0}{1}'.format(run_num, extension)
+                            else:
+                                basename = bids_data_basename + extension
+                            return opj(bids_data_dir, basename)
 
                     # Rename every element in the list of files that was in the archive
                     for f in list_unzipped_files:  # Loop over files in the archive
@@ -225,32 +226,32 @@ class DownloadShanoirDatasetToBIDS:
                             f = filename + NIIGZ
                             ext = NIIGZ
 
-                        # Let's process and rename the file
-                        # Todo : try to make the difference between multiple sequences and multiple downloads
-                        # Compare the contents of the associated json file between previous and new file "AcquisitionTime"
-                        if ext in [NIIGZ, JSON, BVAL, BVEC]:
-                            bids_filename = seq_name(extension=ext, run_num=0)
-                            list_existing_f_ext = glob(opj(bids_data_dir, bids_data_basename + '*' + ext))
-                            nf = len(list_existing_f_ext)
-                            if nf == 0:
-                                # No previously existing file : perform the renaming
-                                os.rename(f, bids_filename)
-                            elif nf == 1:
-                                # One file already existed : give suffices
-                                # the old file gets run-1 suffix
-                                os.rename(bids_filename, seq_name(extension=ext, run_num=1))
-                                # the new file gets run-2 suffix
-                                os.rename(f, seq_name(extension=ext, run_num=2))
-                            else:  # nf >= 2
-                                # At least two files exist, do not touch previous but add the right suffix to new file
-                                os.rename(f, seq_name(extension=ext, run_num=nf + 1))
-                        else:
-                            print('[BIDS format] The extension', ext,
-                                  'is not yet dealt. Ask the authors of the script to make an effort.')
+                            # Let's process and rename the file
+                            # Todo : try to make the difference between multiple sequences and multiple downloads
+                            # Compare the contents of the associated json file between previous and new file "AcquisitionTime"
+                            if ext in [NIIGZ, JSON, BVAL, BVEC]:
+                                bids_filename = seq_name(extension=ext, run_num=0)
+                                list_existing_f_ext = glob(opj(bids_data_dir, bids_data_basename + '*' + ext))
+                                nf = len(list_existing_f_ext)
+                                if nf == 0:
+                                    # No previously existing file : perform the renaming
+                                    os.rename(f, bids_filename)
+                                elif nf == 1:
+                                    # One file already existed : give suffices
+                                    # the old file gets run-1 suffix
+                                    os.rename(bids_filename, seq_name(extension=ext, run_num=1))
+                                    # the new file gets run-2 suffix
+                                    os.rename(f, seq_name(extension=ext, run_num=2))
+                                else:  # nf >= 2
+                                    # At least two files exist, do not touch previous but add the right suffix to new file
+                                    os.rename(f, seq_name(extension=ext, run_num=nf + 1))
+                            else:
+                                print('[BIDS format] The extension', ext,
+                                      'is not yet dealt. Ask the authors of the script to make an effort.')
 
-                    # Delete temporary directory
-                    os.rmdir(tmp_dir)
-                    os.remove(dl_archive)
+                        # Delete temporary directory
+                        os.rmdir(tmp_dir)
+                        os.remove(dl_archive)
 
             elif response.status_code == 204:
                 banner_msg('ERROR : No file found!')
