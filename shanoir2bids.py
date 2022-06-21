@@ -229,7 +229,6 @@ Search Text : "{}" """.format(search_txt)
                                 # os.path.splitext returns (filename.nii, '.gz') instead of (filename, '.nii.gz')
                                 # Just update filename and ext to be back in a case that is dealt by the program
                                 filename, ext = filename[:-4], NIIGZ
-                                f = filename + ext
 
                             # Let's process and rename the file
                             # Todo : try to make the difference between multiple sequences and multiple downloads
