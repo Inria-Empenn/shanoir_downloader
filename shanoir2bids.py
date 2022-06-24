@@ -4,8 +4,8 @@ shanoir2bids.py is a script that allows to download a Shanoir dataset and organi
                 The script is made to run for every project given some information provided by the user into a ".json"
                 configuration file. More details regarding the configuration file in the Readme.md"""
 # Script to download and BIDS-like organize data on Shanoir using "shanoir_downloader.py" developed by Arthur Masson
-# @Author: Quentin Duché <quentin.duche@irisa.fr>, Malo Gaubert <malo.gaubert@irisa.fr>
-# @Date: 14 Juin 2022
+# @Author: Malo Gaubert <malo.gaubert@irisa.fr>, Quentin Duché <quentin.duche@irisa.fr>
+# @Date: 24 Juin 2022
 import os
 import sys
 import zipfile
@@ -16,6 +16,8 @@ from pathlib import Path
 from os.path import join as opj, splitext as ops, exists as ope, dirname as opd
 from glob import glob
 from time import time
+import datetime
+
 
 # Load environment variables
 load_dotenv(dotenv_path=opj(opd(__file__), '.env'))
@@ -71,6 +73,7 @@ def read_json_config_file(json_file):
     study_id = data[K_JSON_STUDY_NAME]
     subjects = data[K_JSON_L_SUBJECTS]
     data_dict = data[K_JSON_DATA_DICT]
+    f.close()
     return study_id, subjects, data_dict
 
 
@@ -89,6 +92,7 @@ class DownloadShanoirDatasetToBIDS:
         self.dl_dir = None  # download directory, where data will be stored
         self.parser = None  # Shanoir Downloader Parser
         self.n_seq = 0  # Number of sequences in the shanoir2bids_dict
+        self.log_fn = None
 
     def set_json_config_file(self, json_file):
         """
@@ -115,6 +119,17 @@ class DownloadShanoirDatasetToBIDS:
 
     def set_download_directory(self, dl_dir):
         self.dl_dir = dl_dir
+        self.set_log_filename()
+
+    def set_log_filename(self):
+        curr_time = datetime.datetime.now()
+        basename = 'shanoir_downloader_{:04}{:02}{:02}_{:02}{:02}{:02}.log'.format(curr_time.year,
+                                                                                   curr_time.month,
+                                                                                   curr_time.day,
+                                                                                   curr_time.hour,
+                                                                                   curr_time.minute,
+                                                                                   curr_time.second)
+        self.log_fn = opj(self.dl_dir, basename)
 
     def configure_parser(self):
         """
@@ -135,6 +150,9 @@ class DownloadShanoirDatasetToBIDS:
         :return:
         """
         banner_msg("Downloading subject " + subject_to_search)
+
+        # Open log file to write the steps of processing (downloading, renaming...)
+        fp = open(self.log_fn, 'w')
 
         # Loop on each sequence defined in the dictionary
         for seq in range(self.n_seq):
@@ -175,11 +193,20 @@ class DownloadShanoirDatasetToBIDS:
 a result on the website.
 Search Text : "{}" """.format(search_txt)
                     print(warn_msg)
+                    fp.write(warn_msg)
                 else:
                     # Organize in BIDS like specifications and rename files
                     for item in response.json()['content']:
                         # ID of the subject (sub-*)
                         subject_id = 'sub-' + item['subjectName']
+
+                        # Write the information on the data in the log file
+                        fp.write('- datasetId = ' + str(item['datasetId']) + '\n')
+                        fp.write('  -- studyName: ' + item['studyName'] + '\n')
+                        fp.write('  -- subjectName: ' + item['subjectName'] + '\n')
+                        fp.write('  -- datasetName: ' + item['datasetName'] + '\n')
+                        fp.write('  -- examinationDate: ' + item['examinationDate'] + '\n')
+                        fp.write('  >> Downloading archive OK\n')
 
                         # Subject BIDS directory
                         subject_dir = opj(self.dl_dir, subject_id)
@@ -203,6 +230,8 @@ Search Text : "{}" """.format(search_txt)
                         # Get the list of files in the archive
                         list_unzipped_files = glob(opj(tmp_dir, '*'))
 
+                        fp.write("  >> Extraction of all files from archive '" + dl_archive + " into " + tmp_dir + "\n")
+
                         def seq_name(extension, run_num=0):
                             """
                             Returns a BIDS filename with appropriate basename and potential suffix
@@ -215,8 +244,49 @@ Search Text : "{}" """.format(search_txt)
                                 basename = bids_data_basename + extension
                             return opj(bids_data_dir, basename)
 
+                        def check_duplicated_data(list_existing_file_json, file_to_add_json):
+                            """
+                            For a list of json file, check if a json file already exists meaning.
+                            We check the flags AcquisitionTime and SequenceName to derive equality test.
+                            :param list_existing_file_json: list of existing json files
+                            :param file_to_add_json:
+                            :return: True if one correspondance is found, False otherwise
+                            """
+                            f = open(file_to_add_json)
+                            data = json.load(f)
+
+                            for old_json in list_existing_file_json:
+                                f_old = open(old_json)
+                                data_old = json.load(f_old)
+
+                                if (data['AcquisitionTime'] == data_old['AcquisitionTime']) & (data['SequenceName'] == data_old['SequenceName']):
+                                    # If one of the json file has the same AcquisitionTime and SequenceName, then it is a duplicated file
+                                    f_old.close()
+                                    f.close()
+                                    return True
+
+                            f.close()
+                            return False
+
+                        # Reorder list_unzipped_files to have json file first; otherwise, nii file will be ordered and then, json will be scanned.
+                        # if duplicated, json won't be copied while nii is already ordered
+                        tempo_fn, tempo_ext = ops(list_unzipped_files[0])
+                        if tempo_ext != JSON:
+                            for idx_fn in range(1, len(list_unzipped_files)):
+                                tempo_fn, tempo_ext = ops(list_unzipped_files[idx_fn])
+                                if tempo_ext == JSON:
+                                    temp = list_unzipped_files[0]
+                                    list_unzipped_files[0] = list_unzipped_files[idx_fn]
+                                    list_unzipped_files[idx_fn] = temp
+                                    idx_fn = len(list_unzipped_files) + 10
+
+                        # By default, the new data to order is not a duplication
+                        duplicated_data = False
+
                         # Rename every element in the list of files that was in the archive
                         for f in list_unzipped_files:  # Loop over files in the archive
+                            fp.write("  >> Processing file '" + f + "'\n")
+
                             filename, ext = ops(f)  # os.path.splitext to get extension
                             if ext == NIFTI:
                                 # In special case of a nifti file, gzip it
@@ -227,40 +297,68 @@ Search Text : "{}" """.format(search_txt)
                                 ext = NIIGZ
                             if ext == '.gz':
                                 # os.path.splitext returns (filename.nii, '.gz') instead of (filename, '.nii.gz')
-                                # Just update filename and ext to be back in a case that is dealt by the program
-                                filename, ext = filename[:-4], NIIGZ
+                                ext = NIIGZ
 
                             # Let's process and rename the file
-                            # Todo : try to make the difference between multiple sequences and multiple downloads
                             # Compare the contents of the associated json file between previous and new file "AcquisitionTime"
-                            if ext in [NIIGZ, JSON, BVAL, BVEC]:
+                            list_existing_f_ext = glob(opj(bids_data_dir, bids_data_basename + '*' + ext))
+                            nf = len(list_existing_f_ext)
+
+                            # if files with same bids_data_basename are present in subjects directory, check json files
+                            if (nf > 0) & (not duplicated_data):
+                                for filename_tempo in list_unzipped_files:
+                                    fn_tempo, ext_tempo = ops(filename_tempo)
+                                    if (ext_tempo == JSON) & (ext == JSON):
+                                        list_existing_f_ext_json = glob(opj(bids_data_dir, bids_data_basename + '*json'))
+                                        duplicated_data = check_duplicated_data(list_existing_f_ext_json, filename_tempo)
+
+                            if duplicated_data:
+                                fp.write(" \n/!\ File already present in the subject's directory. Data will not be used.\n\n")
+
+                            if ext in [NIIGZ, JSON, BVAL, BVEC] and not duplicated_data:
                                 bids_filename = seq_name(extension=ext, run_num=0)
-                                list_existing_f_ext = glob(opj(bids_data_dir, bids_data_basename + '*' + ext))
-                                nf = len(list_existing_f_ext)
                                 if nf == 0:
                                     # No previously existing file : perform the renaming
                                     os.rename(f, bids_filename)
+                                    fp.write("    >> Renaming to '" + bids_filename + "'\n")
                                 elif nf == 1:
+                                    fp.write('   /!\ One similar sequence found ! \n')
                                     # One file already existed : give suffices
                                     # the old file gets run-1 suffix
                                     os.rename(bids_filename, seq_name(extension=ext, run_num=1))
+                                    fp.write("    >> Renaming '" + bids_filename + "' to '" + seq_name(extension=ext, run_num=1) + "'\n")
                                     # the new file gets run-2 suffix
                                     os.rename(f, seq_name(extension=ext, run_num=2))
+                                    fp.write("    >> Renaming to '" + seq_name(extension=ext, run_num=2) + "'\n")
                                 else:  # nf >= 2
                                     # At least two files exist, do not touch previous but add the right suffix to new file
                                     os.rename(f, seq_name(extension=ext, run_num=nf + 1))
+                                    fp.write("    >> Renaming to '" + seq_name(extension=ext, run_num=nf + 1) + "'\n")
                             else:
                                 print('[BIDS format] The extension', ext,
                                       'is not yet dealt. Ask the authors of the script to make an effort.')
+                                fp.write('    >> [BIDS format] The extension' + ext + 'is not yet dealt. Ask the authors of the script to make an effort.\n')
 
-                        # Delete temporary directory
+                        # Delete temporary directory (remove files before if duplicated)
+                        if duplicated_data:
+                            for f in list_unzipped_files:
+                                filename, ext = ops(f)
+                                if ext == '.nii':
+                                    if os.path.exists(f + '.gz'): os.remove(f + '.gz')
+                                else:
+                                    if os.path.exists(f): os.remove(f)
+                            # Alternative to clear temporary disk os.remove( tmp_dir + '/*json') (loop on table with all data type)
                         os.rmdir(tmp_dir)
+                        fp.write('  >> Deleting temporary dir ' + tmp_dir + '\n')
                         os.remove(dl_archive)
+                        fp.write('  >> Deleting downloaded archive ' + dl_archive + '\n\n\n')
 
             elif response.status_code == 204:
                 banner_msg('ERROR : No file found!')
+                fp.write('  >> ERROR : No file found!\n')
             else:
                 banner_msg('ERROR : Returned by the request: status of the response = ' + response.status_code)
+                fp.write('  >> ERROR : Returned by the request: status of the response = ' + str(response.status_code) + '\n')
 
     def download(self):
         """
@@ -271,8 +369,9 @@ Search Text : "{}" """.format(search_txt)
         for subject_to_search in self.shanoir_subjects:
             t_start_subject = time()
             self.download_subject(subject_to_search=subject_to_search)
-            duration = int((time() - t_start_subject) // 60)
-            end_msg = 'Downloaded dataset for subject ' + subject_to_search + ' in ' + str(duration) + ' minutes'
+            dur_min = int((time() - t_start_subject) // 60)
+            dur_sec = int((time() - t_start_subject) % 60)
+            end_msg = 'Downloaded dataset for subject ' + subject_to_search + ' in {}m{}s'.format(dur_min, dur_sec)
             banner_msg(end_msg)
 
 
@@ -310,6 +409,7 @@ def main():
     stb.set_shanoir_subjects(subjects=shanoir_subjects)
     stb.set_shanoir2bids_dict(data_dict=shanoir_data2bids_dict)
     stb.set_download_directory(dl_dir=output_folder)
+    stb.set_log_filename()
     stb.download()
 
 
