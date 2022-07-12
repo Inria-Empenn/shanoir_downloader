@@ -166,7 +166,7 @@ class DownloadShanoirDatasetToBIDS:
 
             # Initialize the parser
             search_txt = 'studyName:' + self.shanoir_study_id + ' AND datasetName:\"' + shanoir_seq_name + \
-                         '\" AND subjectName:' + subject_to_search
+                         '\" AND subjectName:\"' + subject_to_search + '\"'
             args = self.parser.parse_args(
                 ['-u', self.shanoir_username,
                  '-d', 'shanoir.irisa.fr',
