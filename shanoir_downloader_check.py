@@ -198,16 +198,16 @@ while len(datasets_to_download) > 0:
 
 	logging.info(f'There are {len(datasets_to_download)} remaining datasets to download.')
 
-	now = datetime.now()
-	if now.hour > 3 and now.hour < 5:
-		future = datetime(now.year, now.month, now.day, 5, 0)
-		time.sleep((future-now).total_seconds())
-	
 	if len(downloaded_datasets) > 0:
 		logging.info(f'{len(downloaded_datasets)} datasets have been downloaded already, over {len(all_datasets)} datasets.')
 
 	for index, row in datasets_to_download.iterrows():
 
+		now = datetime.now()
+		if now.hour > 2 and now.hour < 5:
+			future = datetime(now.year, now.month, now.day, 5, 0)
+			time.sleep((future-now).total_seconds())
+		
 		sequence_id = index
 		shanoir_name = row['shanoir_name'] if 'shanoir_name' in row else None
 		series_description = row['series_description'] if 'series_description' in row else None

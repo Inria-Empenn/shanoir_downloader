@@ -10,9 +10,9 @@ from anima_utils import *
 
 parser = shanoir_downloader.create_arg_parser("Convert DICOMs to Niftis")
 
-parser.add_argument('-d', '--dicoms', required=True, help='Path to the folder containing the dicoms.')
-parser.add_argument('-of', '--output_folder', required=False, help='Path to the output folder (only used when using from_folders).')
+parser.add_argument('-d', '--dicoms', required=True, help='Path to the folder containing the dicoms (raw/).')
 parser.add_argument('-ff', '--from_folders', default=False, action='store_true', help='Convert from folders instead of zip archives.')
+parser.add_argument('-of', '--output_folder', required=False, help='Path to the output folder (only used when using --from_folders).')
 parser.add_argument('-kd', '--keep_dicom', default=False, action='store_true', help='Keep dicoms after conversion.')
 
 args = parser.parse_args()
@@ -54,6 +54,7 @@ def convert_dicom_to_nifti(dicom_directory, output_folder):
     mcverter_command = lambda: call(['mcverter', '-o', output_folder, '-f', 'nifti', '-n', dicom_directory])
 
     commands = [dicom2nifti_command, mricron_dcm2niix_command, dcm2niix_command, mcverter_command]
+    # commands = [mcverter_command]
     commandNames = ['dicom2nifti', 'mricronDcm2niix', 'dcm2niix', 'mcverter']
 
     conversion_tool = None
