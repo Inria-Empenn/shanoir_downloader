@@ -253,7 +253,7 @@ def download_datasets(args, config=None, all_datasets=None):
 			dicom_zip = zip_files[0]
 			
 			logging.info(f'    Extracting {dicom_zip}...')
-			dicom_folder = destination_folder.parent / 'dicom' # dicom_zip.stem
+			dicom_folder = destination_folder.parent / f'{sequence_id}' # dicom_zip.stem
 			dicom_folder.mkdir(exist_ok=True)
 			# shutil.unpack_archive(str(dicom_zip), str(dicom_folder))
 
