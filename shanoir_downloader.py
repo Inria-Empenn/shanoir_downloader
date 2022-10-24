@@ -286,8 +286,9 @@ def rest_post(config, url, params=None, files=None, stream=None, json=None, data
 # filename = re.findall('filename=(.+)', response.headers.get('Content-Disposition'))[0]
 # open(filename, 'wb').write(response.content)
 
-def download_dataset(config, dataset_id, file_format):
-	print('Downloading dataset', dataset_id)
+def download_dataset(config, dataset_id, file_format, silent=False):
+	if not silent:
+		print('Downloading dataset', dataset_id)
 	file_format = 'nii' if file_format == 'nifti' else 'dcm'
 	url = 'https://' + config['domain'] + '/shanoir-ng/datasets/datasets/download/' + str(dataset_id)
 	response = rest_get(config, url, params={ 'format': file_format })
@@ -360,7 +361,7 @@ def download_datasets_from_ids(args):
 				download_datasets(config, dataset_id_list, file_format)
 
 		if dataset_id != '':
-			download_dataset(config, dataset_id, file_format)
+			download_dataset(config, dataset_id, file_format, False)
 		else:
 
 			if study_id != '' and subject_id == '':
@@ -434,7 +435,7 @@ def download_search_results(config, args, response):
 		json_content = response.json()['content']
 		for item in json_content:
 			try:
-				download_dataset(config, item['datasetId'], args.format)
+				download_dataset(config, item['datasetId'], args.format, False)
 			except requests.HTTPError as e:
 				log_response(e)
 			except requests.RequestException as e:

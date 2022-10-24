@@ -14,6 +14,7 @@ parser.add_argument('-d', '--dicoms', required=True, help='Path to the folder co
 parser.add_argument('-ff', '--from_folders', default=False, action='store_true', help='Convert from folders instead of zip archives.')
 parser.add_argument('-of', '--output_folder', required=False, help='Path to the output folder (only used when using --from_folders).')
 parser.add_argument('-kd', '--keep_dicom', default=False, action='store_true', help='Keep dicoms after conversion.')
+parser.add_argument('-sie', '--skip_if_exists', default=True, action='store_true', help='Skip the conversion if nifti already exists.')
 
 args = parser.parse_args()
 
@@ -103,6 +104,8 @@ for dicom in sorted(list(dicoms.iterdir())):
         convert_dicom_to_nifti_if_needed(dicom, Path(args.output_folder) / f'{dicom.name}', args.keep_dicom, conversion_info)
     else:
         # Extract the zip file
+        nifti = get_first_nifti(dicom)
+        if args.skip_if_exists and nifti is not None: continue
         zip_files = list(dicom.glob('*.zip'))
         for dicom_zip in zip_files:
             print(dicom_zip)
