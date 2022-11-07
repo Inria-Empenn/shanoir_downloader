@@ -19,6 +19,9 @@ from time import time
 import datetime
 
 
+# TODO list
+# 1) Ajouter option pour conserver/supprimer le dicom folder apres conversion dcm2niix
+
 # Load environment variables
 load_dotenv(dotenv_path=opj(opd(__file__), '.env'))
 
@@ -35,7 +38,13 @@ def banner_msg(msg):
 K_JSON_STUDY_NAME = "study_name"
 K_JSON_L_SUBJECTS = "subjects"
 K_JSON_DATA_DICT = "data_to_bids"
-LIST_KEYS_JSON = [K_JSON_STUDY_NAME, K_JSON_L_SUBJECTS, K_JSON_DATA_DICT]
+K_JSON_FIND_AND_REPLACE = "find_and_replace_subject"
+K_DCM2NIIX_PATH = "dcm2niix"
+K_DCM2NIIX_OPTS = "dcm2niix_options"
+K_FIND = 'find'
+K_REPLACE = 'replace'
+LIST_MANDATORY_KEYS_JSON = [K_JSON_STUDY_NAME, K_JSON_L_SUBJECTS, K_JSON_DATA_DICT]
+LIST_AUTHORIZED_KEYS_JSON = LIST_MANDATORY_KEYS_JSON + [K_DCM2NIIX_PATH, K_DCM2NIIX_OPTS]
 
 # Define keys for data dictionary
 K_BIDS_NAME = 'bidsName'
@@ -48,9 +57,20 @@ NIIGZ = '.nii.gz'
 JSON = '.json'
 BVAL = '.bval'
 BVEC = '.bvec'
+DCM = '.dcm'
 
 # Shanoir parameters
-SHANOIR_FILE_TYPE = 'nifti'  # alternative 'dicom'
+SHANOIR_FILE_TYPE_NIFTI = 'nifti'
+SHANOIR_FILE_TYPE_DICOM = 'dicom'
+DEFAULT_SHANOIR_FILE_TYPE = SHANOIR_FILE_TYPE_NIFTI
+
+# Define error and warning messages when call to dcm2niix is not well configured in the json file
+DCM2NIIX_ERR_MSG = """ERROR !! 
+Conversion from DICOM to nifti can not be performed.
+Please provide path to your favorite dcm2niix version in your Shanoir2BIDS .json configuration file.
+Add key "{key}" with the absolute path to dcm2niix version to the following file : """
+DCM2NIIX_WARN_MSG = """WARNING. You did not provide any option to the dcm2niix call.
+If you want to do so, add key "{key}"  to you Shanoir2BIDS configuration file :"""
 
 
 def read_json_config_file(json_file):
@@ -64,17 +84,31 @@ def read_json_config_file(json_file):
     data = json.load(f)
     # Check keys
     for key in data.keys():
-        if not key in LIST_KEYS_JSON:
+        if not key in LIST_AUTHORIZED_KEYS_JSON:
             print('Unknown key "{}" for data dictionary'.format(key))
-    for key in LIST_KEYS_JSON:
+    for key in LIST_MANDATORY_KEYS_JSON:
         if not key in data.keys():
             sys.exit('Error, missing key "{}" in data dictionary'.format(key))
+
     # Set the fields for the instance of the class
     study_id = data[K_JSON_STUDY_NAME]
     subjects = data[K_JSON_L_SUBJECTS]
     data_dict = data[K_JSON_DATA_DICT]
+
+    # Default non-mandatory options
+    list_fars = []
+    dcm2niix_path = None
+    dcm2niix_opts = None
+    if K_JSON_FIND_AND_REPLACE in data.keys():
+        list_fars = data[K_JSON_FIND_AND_REPLACE]
+    if K_DCM2NIIX_PATH in data.keys():
+        dcm2niix_path = data[K_DCM2NIIX_PATH]
+    if K_DCM2NIIX_OPTS in data.keys():
+        dcm2niix_opts = data[K_DCM2NIIX_OPTS]
+
+    # Close json file and return
     f.close()
-    return study_id, subjects, data_dict
+    return study_id, subjects, data_dict, list_fars, dcm2niix_path, dcm2niix_opts
 
 
 class DownloadShanoirDatasetToBIDS:
@@ -89,20 +123,34 @@ class DownloadShanoirDatasetToBIDS:
         self.shanoir2bids_dict = None  # Dictionary specifying how to reformat data into BIDS structure
         self.shanoir_username = None  # Shanoir username
         self.shanoir_study_id = None  # Shanoir study ID
+        self.shanoir_file_type = DEFAULT_SHANOIR_FILE_TYPE  # Default download type (nifti/dicom)
+        self.json_config_file = None
+        self.list_fars = []  # List of substrings to edit in subjects names
         self.dl_dir = None  # download directory, where data will be stored
         self.parser = None  # Shanoir Downloader Parser
         self.n_seq = 0  # Number of sequences in the shanoir2bids_dict
         self.log_fn = None
+        self.dcm2niix_path = None  # Path to the dcm2niix the user wants to use
+        self.dcm2niix_opts = None  # Options to add to the dcm2niix call
 
     def set_json_config_file(self, json_file):
         """
         Sets the configuration for the download through a json file
         :param json_file: str, path to the json_file
         """
-        study_id, subjects, data_dict = read_json_config_file(json_file=json_file)
+        self.json_config_file = json_file
+        study_id, subjects, data_dict, list_fars, dcm2niix_path, dcm2niix_opts = read_json_config_file(json_file=json_file)
         self.set_shanoir_study_id(study_id=study_id)
         self.set_shanoir_subjects(subjects=subjects)
         self.set_shanoir2bids_dict(data_dict=data_dict)
+        self.set_shanoir_list_find_and_replace(list_fars=list_fars)
+        self.set_dcm2niix_parameters(dcm2niix_path=dcm2niix_path, dcm2niix_opts=dcm2niix_opts)
+
+    def set_shanoir_file_type(self, shanoir_file_type):
+        if shanoir_file_type in [SHANOIR_FILE_TYPE_DICOM, SHANOIR_FILE_TYPE_NIFTI]:
+            self.shanoir_file_type = shanoir_file_type
+        else:
+            sys.exit('Unknown shanoir file type {}'.format(shanoir_file_type))
 
     def set_shanoir_study_id(self, study_id):
         self.shanoir_study_id = study_id
@@ -112,6 +160,13 @@ class DownloadShanoirDatasetToBIDS:
 
     def set_shanoir_subjects(self, subjects):
         self.shanoir_subjects = subjects
+
+    def set_shanoir_list_find_and_replace(self, list_fars):
+        self.list_fars = list_fars
+
+    def set_dcm2niix_parameters(self, dcm2niix_path, dcm2niix_opts):
+        self.dcm2niix_path = dcm2niix_path
+        self.dcm2niix_opts = dcm2niix_opts
 
     def set_shanoir2bids_dict(self, data_dict):
         self.shanoir2bids_dict = data_dict
@@ -166,7 +221,7 @@ class DownloadShanoirDatasetToBIDS:
 
             # Initialize the parser
             search_txt = 'studyName:' + self.shanoir_study_id + ' AND datasetName:\"' + shanoir_seq_name + \
-                         '\" AND subjectName:' + subject_to_search
+                         '\" AND subjectName:\"' + subject_to_search + '\"'
             args = self.parser.parse_args(
                 ['-u', self.shanoir_username,
                  '-d', 'shanoir.irisa.fr',
@@ -174,7 +229,7 @@ class DownloadShanoirDatasetToBIDS:
                  '-em',
                  '-st', search_txt,
                  '-s', '200',
-                 '-f', SHANOIR_FILE_TYPE,
+                 '-f', self.shanoir_file_type,
                  '-so', 'id,ASC',
                  '-t', '500'])  # Increase time out for heavy files
 
@@ -197,8 +252,14 @@ Search Text : "{}" """.format(search_txt)
                 else:
                     # Organize in BIDS like specifications and rename files
                     for item in response.json()['content']:
+                        # Define subject_id
+                        su_id = item['subjectName']
+                        # If the user has defined a list of edits to subject names... then do the find and replace
+                        for far in self.list_fars:
+                            su_id = su_id.replace(far[K_FIND], far[K_REPLACE])
+
                         # ID of the subject (sub-*)
-                        subject_id = 'sub-' + item['subjectName']
+                        subject_id = 'sub-' + su_id
 
                         # Write the information on the data in the log file
                         fp.write('- datasetId = ' + str(item['datasetId']) + '\n')
@@ -268,17 +329,47 @@ Search Text : "{}" """.format(search_txt)
                             f.close()
                             return False
 
-                        # Reorder list_unzipped_files to have json file first; otherwise, nii file will be ordered and then, json will be scanned.
-                        # if duplicated, json won't be copied while nii is already ordered
-                        tempo_fn, tempo_ext = ops(list_unzipped_files[0])
-                        if tempo_ext != JSON:
-                            for idx_fn in range(1, len(list_unzipped_files)):
-                                tempo_fn, tempo_ext = ops(list_unzipped_files[idx_fn])
-                                if tempo_ext == JSON:
-                                    temp = list_unzipped_files[0]
-                                    list_unzipped_files[0] = list_unzipped_files[idx_fn]
-                                    list_unzipped_files[idx_fn] = temp
-                                    idx_fn = len(list_unzipped_files) + 10
+                        if self.shanoir_file_type == SHANOIR_FILE_TYPE_DICOM:
+                            # Process the DICOM file by calling dcm2niix
+                            if not self.dcm2niix_path:
+                                err_msg = "msg\n- {file}""".format(msg=DCM2NIIX_ERR_MSG, file=self.json_config_file)
+                                sys.exit(err_msg)
+                            if not self.dcm2niix_opts:
+                                warn_msg = "msg\n- {file}""".format(msg=DCM2NIIX_WARN_MSG, file=self.json_config_file)
+                                print(warn_msg)
+
+                            dcm_files = glob(opj(tmp_dir, '*' + DCM))
+                            # Define dcm2niix options
+                            options = ' {opts} -f {basename} -o {out}'.format(opts=self.dcm2niix_opts, basename=bids_data_basename, out=tmp_dir)
+                            cmd = self.dcm2niix_path + options + ' ' + dcm_files[0]
+
+                            # Retrieve dcm2niix output and save it to file
+                            info_dcm = os.popen(cmd)
+                            info_dcm = info_dcm.read()
+                            info_dcm = info_dcm.split('\n')
+                            fp.write('[dcm2niix] ' + '\n[dcm2niix] '.join(info_dcm[2:-1]) + '\n')
+
+                            # Remove temporary DICOM files
+                            for dcm_file in dcm_files:
+                                os.remove(dcm_file)
+
+                            # After the command, the user should have a nifti and json file and extra files
+                            list_unzipped_files = glob(opj(tmp_dir, '*'))
+
+                            # Now the DICOM part of the script should be in the same stage as the NIFTI part of the script which is below
+
+                        elif self.shanoir_file_type == SHANOIR_FILE_TYPE_NIFTI:
+                            # Reorder list_unzipped_files to have json file first; otherwise, nii file will be ordered and then, json will be scanned.
+                            # if duplicated, json won't be copied while nii is already ordered
+                            tempo_fn, tempo_ext = ops(list_unzipped_files[0])
+                            if tempo_ext != JSON:
+                                for idx_fn in range(1, len(list_unzipped_files)):
+                                    tempo_fn, tempo_ext = ops(list_unzipped_files[idx_fn])
+                                    if tempo_ext == JSON:
+                                        temp = list_unzipped_files[0]
+                                        list_unzipped_files[0] = list_unzipped_files[idx_fn]
+                                        list_unzipped_files[idx_fn] = temp
+                                        idx_fn = len(list_unzipped_files) + 10
 
                         # By default, the new data to order is not a duplication
                         duplicated_data = False
@@ -352,6 +443,8 @@ Search Text : "{}" """.format(search_txt)
                         fp.write('  >> Deleting temporary dir ' + tmp_dir + '\n')
                         os.remove(dl_archive)
                         fp.write('  >> Deleting downloaded archive ' + dl_archive + '\n\n\n')
+                    # End for item in response.json()
+                # End else (cas ou response.json()['content']) != 0)
 
             elif response.status_code == 204:
                 banner_msg('ERROR : No file found!')
@@ -359,6 +452,8 @@ Search Text : "{}" """.format(search_txt)
             else:
                 banner_msg('ERROR : Returned by the request: status of the response = ' + response.status_code)
                 fp.write('  >> ERROR : Returned by the request: status of the response = ' + str(response.status_code) + '\n')
+
+        fp.close()
 
     def download(self):
         """
@@ -379,15 +474,15 @@ def main():
     # Parse argument for the script
     parser = shanoir_downloader.create_arg_parser(description=DESCRIPTION)
     # Use username and output folder arguments from shanoir_downloader
-    shanoir_downloader.add_username_argument(parser)
-    shanoir_downloader.add_output_folder_argument(parser, required=False)
+    shanoir_downloader.add_common_arguments(parser)
     # Add the argument for the configuration file
     parser.add_argument('-j', '--config_file', required=True, help='Path to the .json configuration file specifying parameters for shanoir downloading.')
     # Parse arguments
     args = parser.parse_args()
 
     # Read and check the content of the configuration file
-    shanoir_study_id, shanoir_subjects, shanoir_data2bids_dict = read_json_config_file(args.config_file)
+    shanoir_file_type = args.format
+    shanoir_study_id, _, _, _, _, _ = read_json_config_file(args.config_file)
 
     # Check existence of output folder and create a default output folder otherwise
     if not args.output_folder:
@@ -395,7 +490,7 @@ def main():
         # Set default download directory
         dt = datetime.now().strftime("%Y_%m_%d__%Hh%Mm%Ss")
         output_folder = "shanoir2bids_download_" + shanoir_study_id + '_' + dt
-        print('A NEW DEFAULT directory is created as you did not provide a download directory (-d option)\n\t' + output_folder)
+        print('A NEW DEFAULT directory is created as you did not provide a download directory (-of option)\n\t' + output_folder)
     else:
         output_folder = args.output_folder
 
@@ -405,9 +500,8 @@ def main():
 
     stb = DownloadShanoirDatasetToBIDS()
     stb.set_shanoir_username(args.username)
-    stb.set_shanoir_study_id(study_id=shanoir_study_id)
-    stb.set_shanoir_subjects(subjects=shanoir_subjects)
-    stb.set_shanoir2bids_dict(data_dict=shanoir_data2bids_dict)
+    stb.set_json_config_file(json_file=args.config_file)  #
+    stb.set_shanoir_file_type(shanoir_file_type=shanoir_file_type)
     stb.set_download_directory(dl_dir=output_folder)
     stb.set_log_filename()
     stb.download()
