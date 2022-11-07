@@ -8,5 +8,7 @@
     {"datasetName": "Resting State_bold AP 1.6mm HIPP", "bidsDir": "func", "bidsName": "ap-hipp"},
     {"datasetName": "Diff cusp66 b3000 AP 1.5mm", "bidsDir": "dwi", "bidsName": "cusp66-ap-b3000"},
     {"datasetName": "Diff cusp66 b0 PA 1.5mm", "bidsDir": "dwi", "bidsName": "cusp66-ap-b0"}
-  ]
+  ],
+  "dcm2niix":"/home/qduche/Software/dcm2niix_lnx/dcm2niix",
+  "dcm2niix_options": "-v 0 -z y"
 }
