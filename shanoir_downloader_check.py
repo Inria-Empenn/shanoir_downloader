@@ -140,11 +140,11 @@ def download_datasets(args, config=None, all_datasets=None):
 				all_datasets.rename(columns={'id': 'sequence_id'}, inplace=True)
 				if len(all_datasets) == 0:
 					sys.exit(f'No datasets found for the search text "{args.search_text}".')
-
-		if args.dataset_ids.endswith('.csv') or args.dataset_ids.endswith('.tsv') or args.dataset_ids.endswith('.txt'):
-			all_datasets = pandas.read_csv(args.dataset_ids, sep=',' if args.dataset_ids.endswith('.csv') else '\t', dtype=datasets_dtype)
-		else:
-			all_datasets = pandas.read_excel(args.dataset_ids, dtype=datasets_dtype)
+		elif args.dataset_ids:
+			if args.dataset_ids.endswith('.csv') or args.dataset_ids.endswith('.tsv') or args.dataset_ids.endswith('.txt'):
+				all_datasets = pandas.read_csv(args.dataset_ids, sep=',' if args.dataset_ids.endswith('.csv') else '\t', dtype=datasets_dtype)
+			else:
+				all_datasets = pandas.read_excel(args.dataset_ids, dtype=datasets_dtype)
 	
 	gpg_recipient = args.gpg_recipient or (os.environ['gpg_recipient'] if 'gpg_recipient' in os.environ else None)
 	
