@@ -183,8 +183,8 @@ class DownloadShanoirDatasetToBIDS:
         self.set_shanoir2bids_dict(data_dict=data_dict)
         self.set_shanoir_list_find_and_replace(list_fars=list_fars)
         self.set_dcm2niix_parameters(dcm2niix_path=dcm2niix_path, dcm2niix_opts=dcm2niix_opts)
-        self.set_date_from( date_from=date_from)
-        self.set_date_to( date_to=date_to)
+        self.set_date_from(date_from=date_from)
+        self.set_date_to(date_to=date_to)
 
     def set_shanoir_file_type(self, shanoir_file_type):
         if shanoir_file_type in [SHANOIR_FILE_TYPE_DICOM, SHANOIR_FILE_TYPE_NIFTI]:
@@ -277,12 +277,12 @@ class DownloadShanoirDatasetToBIDS:
             print('\t-', bids_seq_name, subject_to_search, '[' + str(seq + 1) + '/' + str(self.n_seq) + ']')
 
             # Initialize the parser
-            search_txt = 'studyName:' + self.shanoir_study_id + ' AND datasetName:\"' + shanoir_seq_name + \
-                         '\" AND subjectName:\"' + subject_to_search + '\"'
-            search_txt = 'studyName:' + self.shanoir_study_id.replace(" ", "?")+ ' AND datasetName:' + shanoir_seq_name.replace(" ", "?")  + \
-                        ' AND subjectName:' + subject_to_search.replace(" ", "?") + ' AND examinationComment:' + self.shanoir_session_id.replace(" ", "*") + \
+            search_txt = 'studyName:' + self.shanoir_study_id.replace(" ", "?") + \
+                        ' AND datasetName:' + shanoir_seq_name.replace(" ", "?")  + \
+                        ' AND subjectName:' + subject_to_search.replace(" ", "?") + \
+                        ' AND examinationComment:' + self.shanoir_session_id.replace(" ", "*") + \
                         ' AND examinationDate:[' + self.date_from + ' TO ' + self.date_to + ']'
-                                                 
+
             args = self.parser.parse_args(
                 ['-u', self.shanoir_username,
                  '-d', 'shanoir.irisa.fr',
