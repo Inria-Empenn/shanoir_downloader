@@ -10,6 +10,7 @@ import os
 import sys
 import zipfile
 import json
+import shutil
 import shanoir_downloader
 from dotenv import load_dotenv
 from pathlib import Path
@@ -222,7 +223,16 @@ class DownloadShanoirDatasetToBIDS:
         self.n_seq = len(self.shanoir2bids_dict)
 
     def set_download_directory(self, dl_dir):
-        self.dl_dir = dl_dir
+        if dl_dir is None:
+            # Create a default download directory
+            dt = datetime.datetime.now().strftime("%Y_%m_%d_at_%Hh%Mm%Ss")
+            self.dl_dir = '_'.join(["shanoir2bids", "download", self.shanoir_study_id, dt])
+            print('A NEW DEFAULT directory is created as you did not provide a download directory (-of option)\n\t' + self.dl_dir)
+        else:
+            self.dl_dir = dl_dir
+        # Create directory if it does not exist
+        if not ope(self.dl_dir):
+            Path(self.dl_dir).mkdir(parents=True, exist_ok=True)
         self.set_log_filename()
 
     def set_log_filename(self):
@@ -435,18 +445,17 @@ Search Text : "{}" \n""".format(search_txt)
 
                             # Now the DICOM part of the script should be in the same stage as the NIFTI part of the script which is below
 
-                        elif self.shanoir_file_type == SHANOIR_FILE_TYPE_NIFTI:
-                            # Reorder list_unzipped_files to have json file first; otherwise, nii file will be ordered and then, json will be scanned.
-                            # if duplicated, json won't be copied while nii is already ordered
-                            tempo_fn, tempo_ext = ops(list_unzipped_files[0])
-                            if tempo_ext != JSON:
-                                for idx_fn in range(1, len(list_unzipped_files)):
-                                    tempo_fn, tempo_ext = ops(list_unzipped_files[idx_fn])
-                                    if tempo_ext == JSON:
-                                        temp = list_unzipped_files[0]
-                                        list_unzipped_files[0] = list_unzipped_files[idx_fn]
-                                        list_unzipped_files[idx_fn] = temp
-                                        idx_fn = len(list_unzipped_files) + 10
+                        # Reorder list_unzipped_files to have json file first; otherwise, nii file will be ordered and then, json will be scanned.
+                        # if duplicated, json won't be copied while nii is already ordered
+                        tempo_fn, tempo_ext = ops(list_unzipped_files[0])
+                        if tempo_ext != JSON:
+                            for idx_fn in range(1, len(list_unzipped_files)):
+                                tempo_fn, tempo_ext = ops(list_unzipped_files[idx_fn])
+                                if tempo_ext == JSON:
+                                    temp = list_unzipped_files[0]
+                                    list_unzipped_files[0] = list_unzipped_files[idx_fn]
+                                    list_unzipped_files[idx_fn] = temp
+                                    break
 
                         # By default, the new data to order is not a duplication
                         duplicated_data = False
@@ -482,41 +491,41 @@ Search Text : "{}" \n""".format(search_txt)
 
                             if duplicated_data:
                                 fp.write(" \n/!\ File already present in the subject's directory. Data will not be used.\n\n")
+                                list_unzipped_files = []
 
-                            if ext in [NIIGZ, JSON, BVAL, BVEC] and not duplicated_data:
-                                bids_filename = seq_name(extension=ext, run_num=0)
-                                if nf == 0:
-                                    # No previously existing file : perform the renaming
-                                    os.rename(f, bids_filename)
-                                    fp.write("    >> Renaming to '" + bids_filename + "'\n")
-                                elif nf == 1:
-                                    fp.write('   /!\ One similar sequence found ! \n')
-                                    # One file already existed : give suffices
-                                    # the old file gets run-1 suffix
-                                    os.rename(bids_filename, seq_name(extension=ext, run_num=1))
-                                    fp.write("    >> Renaming '" + bids_filename + "' to '" + seq_name(extension=ext, run_num=1) + "'\n")
-                                    # the new file gets run-2 suffix
-                                    os.rename(f, seq_name(extension=ext, run_num=2))
-                                    fp.write("    >> Renaming to '" + seq_name(extension=ext, run_num=2) + "'\n")
-                                else:  # nf >= 2
-                                    # At least two files exist, do not touch previous but add the right suffix to new file
-                                    os.rename(f, seq_name(extension=ext, run_num=nf + 1))
-                                    fp.write("    >> Renaming to '" + seq_name(extension=ext, run_num=nf + 1) + "'\n")
+                            if ext in [NIIGZ, JSON, BVAL, BVEC]:
+                                if not duplicated_data:
+                                    bids_filename = seq_name(extension=ext, run_num=0)
+                                    if nf == 0:
+                                        # No previously existing file : perform the renaming
+                                        os.rename(f, bids_filename)
+                                        fp.write("    >> Renaming to '" + bids_filename + "'\n")
+                                    elif nf == 1:
+                                        fp.write('   /!\ One similar filename found ! \n')
+                                        # One file already existed : give suffices
+                                        # the old file gets run-1 suffix
+                                        os.rename(bids_filename, seq_name(extension=ext, run_num=1))
+                                        fp.write("    >> Renaming '" + bids_filename + "' to '" + seq_name(extension=ext, run_num=1) + "'\n")
+                                        # the new file gets run-2 suffix
+                                        os.rename(f, seq_name(extension=ext, run_num=2))
+                                        fp.write("    >> Renaming to '" + seq_name(extension=ext, run_num=2) + "'\n")
+                                    else:  # nf >= 2
+                                        # At least two files exist, do not touch previous but add the right suffix to new file
+                                        os.rename(f, seq_name(extension=ext, run_num=nf + 1))
+                                        fp.write("    >> Renaming to '" + seq_name(extension=ext, run_num=nf + 1) + "'\n")
                             else:
-                                print('[BIDS format] The extension', ext,
-                                      'is not yet dealt. Ask the authors of the script to make an effort.')
+                                print('[BIDS format] The extension', ext, 'is not yet dealt. Ask the authors of the script to make an effort.')
                                 fp.write('    >> [BIDS format] The extension' + ext + 'is not yet dealt. Ask the authors of the script to make an effort.\n')
 
                         # Delete temporary directory (remove files before if duplicated)
                         if duplicated_data:
                             for f in list_unzipped_files:
                                 filename, ext = ops(f)
-                                if ext == '.nii':
+                                if ext == NIFTI:
                                     if os.path.exists(f + '.gz'): os.remove(f + '.gz')
                                 else:
                                     if os.path.exists(f): os.remove(f)
-                            # Alternative to clear temporary disk os.remove( tmp_dir + '/*json') (loop on table with all data type)
-                        os.rmdir(tmp_dir)
+                        shutil.rmtree(tmp_dir)
                         fp.write('  >> Deleting temporary dir ' + tmp_dir + '\n')
                         os.remove(dl_archive)
                         fp.write('  >> Deleting downloaded archive ' + dl_archive + '\n\n\n')
@@ -537,6 +546,7 @@ Search Text : "{}" \n""".format(search_txt)
         Loop over the Shanoir subjects and go download the required datasets
         :return:
         """
+        self.set_log_filename()
         self.configure_parser()  # Configure the shanoir_downloader parser
         for subject_to_search in self.shanoir_subjects:
             t_start_subject = time()
@@ -551,37 +561,22 @@ def main():
     # Parse argument for the script
     parser = shanoir_downloader.create_arg_parser(description=DESCRIPTION)
     # Use username and output folder arguments from shanoir_downloader
-    shanoir_downloader.add_common_arguments(parser)
+    shanoir_downloader.add_username_argument(parser)
+    parser.add_argument('-d', '--domain', default='shanoir.irisa.fr', help='The shanoir domain to query.')
+    parser.add_argument('-f', '--format', default='nifti', choices=['nifti', 'dicom'], help='The format to download.')
+    shanoir_downloader.add_output_folder_argument(parser=parser, required=False)
     # Add the argument for the configuration file
     parser.add_argument('-j', '--config_file', required=True, help='Path to the .json configuration file specifying parameters for shanoir downloading.')
     parser.add_argument('-L', '--longitudinal', required=False, action='store_true', help='Toggle longitudinal approach.')
     # Parse arguments
     args = parser.parse_args()
 
-    # Read and check the content of the configuration file
-    shanoir_file_type = args.format
-    shanoir_study_id, _, _, _, _, _, _, _, _ = read_json_config_file(args.config_file)
-
-    # Check existence of output folder and create a default output folder otherwise
-    if not args.output_folder:
-        from datetime import datetime
-        # Set default download directory
-        dt = datetime.now().strftime("%Y_%m_%d__%Hh%Mm%Ss")
-        output_folder = "shanoir2bids_download_" + shanoir_study_id + '_' + dt
-        print('A NEW DEFAULT directory is created as you did not provide a download directory (-of option)\n\t' + output_folder)
-    else:
-        output_folder = args.output_folder
-
-    # Create directory if it does not exist
-    if not ope(output_folder):
-        Path(output_folder).mkdir(parents=True, exist_ok=True)
-
+    # Start configuring the DownloadShanoirDatasetToBids class instance
     stb = DownloadShanoirDatasetToBIDS()
     stb.set_shanoir_username(args.username)
-    stb.set_json_config_file(json_file=args.config_file)
-    stb.set_shanoir_file_type(shanoir_file_type=shanoir_file_type)
-    stb.set_download_directory(dl_dir=output_folder)
-    stb.set_log_filename()
+    stb.set_json_config_file(json_file=args.config_file)  # path to json configuration file
+    stb.set_shanoir_file_type(shanoir_file_type=args.format)  # Format (dicom or nifti)
+    stb.set_download_directory(dl_dir=args.output_folder)  # output folder (if None a default directory is created)
     if args.longitudinal:
         stb.toggle_longitudinal_version()
     stb.download()
