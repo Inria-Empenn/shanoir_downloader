@@ -10,6 +10,7 @@ import os
 import sys
 import zipfile
 import json
+import shutil
 import shanoir_downloader
 from dotenv import load_dotenv
 from pathlib import Path
@@ -17,6 +18,7 @@ from os.path import join as opj, splitext as ops, exists as ope, dirname as opd
 from glob import glob
 from time import time
 import datetime
+from dateutil import parser
 
 
 # TODO list
@@ -37,18 +39,22 @@ def banner_msg(msg):
 # Keys for json configuration file
 K_JSON_STUDY_NAME = "study_name"
 K_JSON_L_SUBJECTS = "subjects"
+K_JSON_SESSION = "session"
 K_JSON_DATA_DICT = "data_to_bids"
 K_JSON_FIND_AND_REPLACE = "find_and_replace_subject"
 K_DCM2NIIX_PATH = "dcm2niix"
 K_DCM2NIIX_OPTS = "dcm2niix_options"
 K_FIND = 'find'
 K_REPLACE = 'replace'
+K_JSON_DATE_FROM = 'date_from'  # examinationDate:[2014-03-21T00:00:00Z TO 2014-03-22T00:00:00Z]
+K_JSON_DATE_TO = 'date_to'      # examinationDate:[2014-03-21T00:00:00Z TO 2014-03-22T00:00:00Z]
 LIST_MANDATORY_KEYS_JSON = [K_JSON_STUDY_NAME, K_JSON_L_SUBJECTS, K_JSON_DATA_DICT]
-LIST_AUTHORIZED_KEYS_JSON = LIST_MANDATORY_KEYS_JSON + [K_DCM2NIIX_PATH, K_DCM2NIIX_OPTS]
+LIST_AUTHORIZED_KEYS_JSON = LIST_MANDATORY_KEYS_JSON + [K_DCM2NIIX_PATH, K_DCM2NIIX_OPTS, K_JSON_DATE_FROM, K_JSON_DATE_TO, K_JSON_SESSION]
 
 # Define keys for data dictionary
 K_BIDS_NAME = 'bidsName'
 K_BIDS_DIR = 'bidsDir'
+K_BIDS_SES = 'bidsSession'
 K_DS_NAME = 'datasetName'
 
 # Define Extensions that are dealt so far by (#todo : think of other possible extensions ?)
@@ -65,13 +71,21 @@ SHANOIR_FILE_TYPE_DICOM = 'dicom'
 DEFAULT_SHANOIR_FILE_TYPE = SHANOIR_FILE_TYPE_NIFTI
 
 # Define error and warning messages when call to dcm2niix is not well configured in the json file
-DCM2NIIX_ERR_MSG = """ERROR !! 
+DCM2NIIX_ERR_MSG = """ERROR !!
 Conversion from DICOM to nifti can not be performed.
 Please provide path to your favorite dcm2niix version in your Shanoir2BIDS .json configuration file.
 Add key "{key}" with the absolute path to dcm2niix version to the following file : """
 DCM2NIIX_WARN_MSG = """WARNING. You did not provide any option to the dcm2niix call.
 If you want to do so, add key "{key}"  to you Shanoir2BIDS configuration file :"""
 
+
+def check_date_format(date_to_format):
+    # TRUE FORMAT should be: date_format = 'Y-m-dTH:M:SZ'
+    try:
+        parser.parse(date_to_format)
+    # If the date validation goes wrong
+    except ValueError:
+        print("Incorrect data format, should be YYYY-MM-DDTHH:MM:SSZ (for example: 2020-02-19T00:00:00Z)")
 
 def read_json_config_file(json_file):
     """
@@ -90,7 +104,7 @@ def read_json_config_file(json_file):
         if not key in data.keys():
             sys.exit('Error, missing key "{}" in data dictionary'.format(key))
 
-    # Set the fields for the instance of the class
+    # Sets the mandatory fields for the instance of the class
     study_id = data[K_JSON_STUDY_NAME]
     subjects = data[K_JSON_L_SUBJECTS]
     data_dict = data[K_JSON_DATA_DICT]
@@ -99,16 +113,35 @@ def read_json_config_file(json_file):
     list_fars = []
     dcm2niix_path = None
     dcm2niix_opts = None
+    date_from = '*'
+    date_to = '*'
+    session_id = '*'
+
     if K_JSON_FIND_AND_REPLACE in data.keys():
         list_fars = data[K_JSON_FIND_AND_REPLACE]
     if K_DCM2NIIX_PATH in data.keys():
         dcm2niix_path = data[K_DCM2NIIX_PATH]
     if K_DCM2NIIX_OPTS in data.keys():
         dcm2niix_opts = data[K_DCM2NIIX_OPTS]
+    if K_JSON_DATE_FROM in data.keys():
+        if data[K_JSON_DATE_FROM] == '':
+            data_from = '*'
+        else:
+            date_from = data[K_JSON_DATE_FROM]
+            check_date_format(date_from)
+    if K_JSON_DATE_TO in data.keys():
+        if data[K_JSON_DATE_TO] == '':
+            data_to = '*'
+        else:
+            date_to = data[K_JSON_DATE_TO]
+            check_date_format(date_to)
+    if K_JSON_SESSION in data.keys():
+        session_id = data[K_JSON_SESSION]
+
 
     # Close json file and return
     f.close()
-    return study_id, subjects, data_dict, list_fars, dcm2niix_path, dcm2niix_opts
+    return study_id, subjects, session_id, data_dict, list_fars, dcm2niix_path, dcm2niix_opts, date_from, date_to
 
 
 class DownloadShanoirDatasetToBIDS:
@@ -123,6 +156,7 @@ class DownloadShanoirDatasetToBIDS:
         self.shanoir2bids_dict = None  # Dictionary specifying how to reformat data into BIDS structure
         self.shanoir_username = None  # Shanoir username
         self.shanoir_study_id = None  # Shanoir study ID
+        self.shanoir_session_id = None  # Shanoir study ID
         self.shanoir_file_type = DEFAULT_SHANOIR_FILE_TYPE  # Default download type (nifti/dicom)
         self.json_config_file = None
         self.list_fars = []  # List of substrings to edit in subjects names
@@ -132,6 +166,10 @@ class DownloadShanoirDatasetToBIDS:
         self.log_fn = None
         self.dcm2niix_path = None  # Path to the dcm2niix the user wants to use
         self.dcm2niix_opts = None  # Options to add to the dcm2niix call
+        self.date_from = None
+        self.date_to = None
+        self.longitudinal = False
+        self.to_automri_format = False # Special filenames for automri (close to BIDS format)
 
     def set_json_config_file(self, json_file):
         """
@@ -139,12 +177,15 @@ class DownloadShanoirDatasetToBIDS:
         :param json_file: str, path to the json_file
         """
         self.json_config_file = json_file
-        study_id, subjects, data_dict, list_fars, dcm2niix_path, dcm2niix_opts = read_json_config_file(json_file=json_file)
+        study_id, subjects, session_id, data_dict, list_fars, dcm2niix_path, dcm2niix_opts, date_from, date_to = read_json_config_file(json_file=json_file)
         self.set_shanoir_study_id(study_id=study_id)
         self.set_shanoir_subjects(subjects=subjects)
+        self.set_shanoir_session_id(session_id=session_id)
         self.set_shanoir2bids_dict(data_dict=data_dict)
         self.set_shanoir_list_find_and_replace(list_fars=list_fars)
         self.set_dcm2niix_parameters(dcm2niix_path=dcm2niix_path, dcm2niix_opts=dcm2niix_opts)
+        self.set_date_from(date_from=date_from)
+        self.set_date_to(date_to=date_to)
 
     def set_shanoir_file_type(self, shanoir_file_type):
         if shanoir_file_type in [SHANOIR_FILE_TYPE_DICOM, SHANOIR_FILE_TYPE_NIFTI]:
@@ -161,6 +202,9 @@ class DownloadShanoirDatasetToBIDS:
     def set_shanoir_subjects(self, subjects):
         self.shanoir_subjects = subjects
 
+    def set_shanoir_session_id(self, session_id):
+        self.shanoir_session_id = session_id
+
     def set_shanoir_list_find_and_replace(self, list_fars):
         self.list_fars = list_fars
 
@@ -168,12 +212,27 @@ class DownloadShanoirDatasetToBIDS:
         self.dcm2niix_path = dcm2niix_path
         self.dcm2niix_opts = dcm2niix_opts
 
+    def set_date_from(self, date_from):
+        self.date_from = date_from
+
+    def set_date_to(self, date_to):
+        self.date_to = date_to
+
     def set_shanoir2bids_dict(self, data_dict):
         self.shanoir2bids_dict = data_dict
         self.n_seq = len(self.shanoir2bids_dict)
 
     def set_download_directory(self, dl_dir):
-        self.dl_dir = dl_dir
+        if dl_dir is None:
+            # Create a default download directory
+            dt = datetime.datetime.now().strftime("%Y_%m_%d_at_%Hh%Mm%Ss")
+            self.dl_dir = '_'.join(["shanoir2bids", "download", self.shanoir_study_id, dt])
+            print('A NEW DEFAULT directory is created as you did not provide a download directory (-of option)\n\t' + self.dl_dir)
+        else:
+            self.dl_dir = dl_dir
+        # Create directory if it does not exist
+        if not ope(self.dl_dir):
+            Path(self.dl_dir).mkdir(parents=True, exist_ok=True)
         self.set_log_filename()
 
     def set_log_filename(self):
@@ -185,6 +244,12 @@ class DownloadShanoirDatasetToBIDS:
                                                                                    curr_time.minute,
                                                                                    curr_time.second)
         self.log_fn = opj(self.dl_dir, basename)
+
+    def toggle_longitudinal_version(self):
+        self.longitudinal = True
+
+    def switch_to_automri_format(self):
+        self.to_automri_format = True
 
     def configure_parser(self):
         """
@@ -215,13 +280,19 @@ class DownloadShanoirDatasetToBIDS:
             shanoir_seq_name = self.shanoir2bids_dict[seq][K_DS_NAME]  # Shanoir sequence name (OLD)
             bids_seq_subdir = self.shanoir2bids_dict[seq][K_BIDS_DIR]  # Sequence BIDS subdirectory name (NEW)
             bids_seq_name = self.shanoir2bids_dict[seq][K_BIDS_NAME]  # Sequence BIDS nickname (NEW)
+            if self.longitudinal:
+                bids_seq_session = self.shanoir2bids_dict[seq][K_BIDS_SES]  # Sequence BIDS nickname (NEW)
 
             # Print message concerning the sequence that is being downloaded
             print('\t-', bids_seq_name, subject_to_search, '[' + str(seq + 1) + '/' + str(self.n_seq) + ']')
 
             # Initialize the parser
-            search_txt = 'studyName:' + self.shanoir_study_id + ' AND datasetName:\"' + shanoir_seq_name + \
-                         '\" AND subjectName:\"' + subject_to_search + '\"'
+            search_txt = 'studyName:' + self.shanoir_study_id.replace(" ", "?") + \
+                        ' AND datasetName:' + shanoir_seq_name.replace(" ", "?")  + \
+                        ' AND subjectName:' + subject_to_search.replace(" ", "?") + \
+                        ' AND examinationComment:' + self.shanoir_session_id.replace(" ", "*") + \
+                        ' AND examinationDate:[' + self.date_from + ' TO ' + self.date_to + ']'
+
             args = self.parser.parse_args(
                 ['-u', self.shanoir_username,
                  '-d', 'shanoir.irisa.fr',
@@ -246,7 +317,7 @@ class DownloadShanoirDatasetToBIDS:
                 if len(response.json()['content']) == 0:
                     warn_msg = """WARNING ! The Shanoir request returned 0 result. Make sure the following search text returns 
 a result on the website.
-Search Text : "{}" """.format(search_txt)
+Search Text : "{}" \n""".format(search_txt)
                     print(warn_msg)
                     fp.write(warn_msg)
                 else:
@@ -265,15 +336,31 @@ Search Text : "{}" """.format(search_txt)
                         fp.write('- datasetId = ' + str(item['datasetId']) + '\n')
                         fp.write('  -- studyName: ' + item['studyName'] + '\n')
                         fp.write('  -- subjectName: ' + item['subjectName'] + '\n')
+                        fp.write('  -- session: ' + item['examinationComment'] + '\n')
                         fp.write('  -- datasetName: ' + item['datasetName'] + '\n')
                         fp.write('  -- examinationDate: ' + item['examinationDate'] + '\n')
                         fp.write('  >> Downloading archive OK\n')
 
                         # Subject BIDS directory
-                        subject_dir = opj(self.dl_dir, subject_id)
+                        if self.to_automri_format:
+                            subject_dir = opj(self.dl_dir, 'su_' + su_id)
+                        else:
+                            subject_dir = opj(self.dl_dir, subject_id)
+
                         # Prepare BIDS naming
-                        bids_data_dir = opj(subject_dir, bids_seq_subdir)
-                        bids_data_basename = '_'.join([subject_id, bids_seq_name])
+                        if self.longitudinal:
+                            # Insert a session sub-directory
+                            bids_data_dir = opj(subject_dir, bids_seq_session, bids_seq_subdir)
+                            if self.to_automri_format:
+                                bids_data_basename = '_'.join([bids_seq_session, bids_seq_name])
+                            else:
+                                bids_data_basename = '_'.join([subject_id, bids_seq_session, bids_seq_name])
+                        else:
+                            bids_data_dir = opj(subject_dir, bids_seq_subdir)
+                            if self.to_automri_format:
+                                bids_data_basename = '_'.join([bids_seq_name])
+                            else:
+                                bids_data_basename = '_'.join([subject_id, bids_seq_name])
 
                         # Create temp directory to make sure the directory is empty before
                         tmp_dir = opj(self.dl_dir, 'temp_archive')
@@ -358,18 +445,17 @@ Search Text : "{}" """.format(search_txt)
 
                             # Now the DICOM part of the script should be in the same stage as the NIFTI part of the script which is below
 
-                        elif self.shanoir_file_type == SHANOIR_FILE_TYPE_NIFTI:
-                            # Reorder list_unzipped_files to have json file first; otherwise, nii file will be ordered and then, json will be scanned.
-                            # if duplicated, json won't be copied while nii is already ordered
-                            tempo_fn, tempo_ext = ops(list_unzipped_files[0])
-                            if tempo_ext != JSON:
-                                for idx_fn in range(1, len(list_unzipped_files)):
-                                    tempo_fn, tempo_ext = ops(list_unzipped_files[idx_fn])
-                                    if tempo_ext == JSON:
-                                        temp = list_unzipped_files[0]
-                                        list_unzipped_files[0] = list_unzipped_files[idx_fn]
-                                        list_unzipped_files[idx_fn] = temp
-                                        idx_fn = len(list_unzipped_files) + 10
+                        # Reorder list_unzipped_files to have json file first; otherwise, nii file will be ordered and then, json will be scanned.
+                        # if duplicated, json won't be copied while nii is already ordered
+                        tempo_fn, tempo_ext = ops(list_unzipped_files[0])
+                        if tempo_ext != JSON:
+                            for idx_fn in range(1, len(list_unzipped_files)):
+                                tempo_fn, tempo_ext = ops(list_unzipped_files[idx_fn])
+                                if tempo_ext == JSON:
+                                    temp = list_unzipped_files[0]
+                                    list_unzipped_files[0] = list_unzipped_files[idx_fn]
+                                    list_unzipped_files[idx_fn] = temp
+                                    break
 
                         # By default, the new data to order is not a duplication
                         duplicated_data = False
@@ -405,41 +491,41 @@ Search Text : "{}" """.format(search_txt)
 
                             if duplicated_data:
                                 fp.write(" \n/!\ File already present in the subject's directory. Data will not be used.\n\n")
+                                list_unzipped_files = []
 
-                            if ext in [NIIGZ, JSON, BVAL, BVEC] and not duplicated_data:
-                                bids_filename = seq_name(extension=ext, run_num=0)
-                                if nf == 0:
-                                    # No previously existing file : perform the renaming
-                                    os.rename(f, bids_filename)
-                                    fp.write("    >> Renaming to '" + bids_filename + "'\n")
-                                elif nf == 1:
-                                    fp.write('   /!\ One similar sequence found ! \n')
-                                    # One file already existed : give suffices
-                                    # the old file gets run-1 suffix
-                                    os.rename(bids_filename, seq_name(extension=ext, run_num=1))
-                                    fp.write("    >> Renaming '" + bids_filename + "' to '" + seq_name(extension=ext, run_num=1) + "'\n")
-                                    # the new file gets run-2 suffix
-                                    os.rename(f, seq_name(extension=ext, run_num=2))
-                                    fp.write("    >> Renaming to '" + seq_name(extension=ext, run_num=2) + "'\n")
-                                else:  # nf >= 2
-                                    # At least two files exist, do not touch previous but add the right suffix to new file
-                                    os.rename(f, seq_name(extension=ext, run_num=nf + 1))
-                                    fp.write("    >> Renaming to '" + seq_name(extension=ext, run_num=nf + 1) + "'\n")
+                            if ext in [NIIGZ, JSON, BVAL, BVEC]:
+                                if not duplicated_data:
+                                    bids_filename = seq_name(extension=ext, run_num=0)
+                                    if nf == 0:
+                                        # No previously existing file : perform the renaming
+                                        os.rename(f, bids_filename)
+                                        fp.write("    >> Renaming to '" + bids_filename + "'\n")
+                                    elif nf == 1:
+                                        fp.write('   /!\ One similar filename found ! \n')
+                                        # One file already existed : give suffices
+                                        # the old file gets run-1 suffix
+                                        os.rename(bids_filename, seq_name(extension=ext, run_num=1))
+                                        fp.write("    >> Renaming '" + bids_filename + "' to '" + seq_name(extension=ext, run_num=1) + "'\n")
+                                        # the new file gets run-2 suffix
+                                        os.rename(f, seq_name(extension=ext, run_num=2))
+                                        fp.write("    >> Renaming to '" + seq_name(extension=ext, run_num=2) + "'\n")
+                                    else:  # nf >= 2
+                                        # At least two files exist, do not touch previous but add the right suffix to new file
+                                        os.rename(f, seq_name(extension=ext, run_num=nf + 1))
+                                        fp.write("    >> Renaming to '" + seq_name(extension=ext, run_num=nf + 1) + "'\n")
                             else:
-                                print('[BIDS format] The extension', ext,
-                                      'is not yet dealt. Ask the authors of the script to make an effort.')
+                                print('[BIDS format] The extension', ext, 'is not yet dealt. Ask the authors of the script to make an effort.')
                                 fp.write('    >> [BIDS format] The extension' + ext + 'is not yet dealt. Ask the authors of the script to make an effort.\n')
 
                         # Delete temporary directory (remove files before if duplicated)
                         if duplicated_data:
                             for f in list_unzipped_files:
                                 filename, ext = ops(f)
-                                if ext == '.nii':
+                                if ext == NIFTI:
                                     if os.path.exists(f + '.gz'): os.remove(f + '.gz')
                                 else:
                                     if os.path.exists(f): os.remove(f)
-                            # Alternative to clear temporary disk os.remove( tmp_dir + '/*json') (loop on table with all data type)
-                        os.rmdir(tmp_dir)
+                        shutil.rmtree(tmp_dir)
                         fp.write('  >> Deleting temporary dir ' + tmp_dir + '\n')
                         os.remove(dl_archive)
                         fp.write('  >> Deleting downloaded archive ' + dl_archive + '\n\n\n')
@@ -460,6 +546,7 @@ Search Text : "{}" """.format(search_txt)
         Loop over the Shanoir subjects and go download the required datasets
         :return:
         """
+        self.set_log_filename()
         self.configure_parser()  # Configure the shanoir_downloader parser
         for subject_to_search in self.shanoir_subjects:
             t_start_subject = time()
@@ -474,36 +561,24 @@ def main():
     # Parse argument for the script
     parser = shanoir_downloader.create_arg_parser(description=DESCRIPTION)
     # Use username and output folder arguments from shanoir_downloader
-    shanoir_downloader.add_common_arguments(parser)
+    shanoir_downloader.add_username_argument(parser)
+    parser.add_argument('-d', '--domain', default='shanoir.irisa.fr', help='The shanoir domain to query.')
+    parser.add_argument('-f', '--format', default='nifti', choices=['nifti', 'dicom'], help='The format to download.')
+    shanoir_downloader.add_output_folder_argument(parser=parser, required=False)
     # Add the argument for the configuration file
     parser.add_argument('-j', '--config_file', required=True, help='Path to the .json configuration file specifying parameters for shanoir downloading.')
+    parser.add_argument('-L', '--longitudinal', required=False, action='store_true', help='Toggle longitudinal approach.')
     # Parse arguments
     args = parser.parse_args()
 
-    # Read and check the content of the configuration file
-    shanoir_file_type = args.format
-    shanoir_study_id, _, _, _, _, _ = read_json_config_file(args.config_file)
-
-    # Check existence of output folder and create a default output folder otherwise
-    if not args.output_folder:
-        from datetime import datetime
-        # Set default download directory
-        dt = datetime.now().strftime("%Y_%m_%d__%Hh%Mm%Ss")
-        output_folder = "shanoir2bids_download_" + shanoir_study_id + '_' + dt
-        print('A NEW DEFAULT directory is created as you did not provide a download directory (-of option)\n\t' + output_folder)
-    else:
-        output_folder = args.output_folder
-
-    # Create directory if it does not exist
-    if not ope(output_folder):
-        Path(output_folder).mkdir(parents=True, exist_ok=True)
-
+    # Start configuring the DownloadShanoirDatasetToBids class instance
     stb = DownloadShanoirDatasetToBIDS()
     stb.set_shanoir_username(args.username)
-    stb.set_json_config_file(json_file=args.config_file)  #
-    stb.set_shanoir_file_type(shanoir_file_type=shanoir_file_type)
-    stb.set_download_directory(dl_dir=output_folder)
-    stb.set_log_filename()
+    stb.set_json_config_file(json_file=args.config_file)  # path to json configuration file
+    stb.set_shanoir_file_type(shanoir_file_type=args.format)  # Format (dicom or nifti)
+    stb.set_download_directory(dl_dir=args.output_folder)  # output folder (if None a default directory is created)
+    if args.longitudinal:
+        stb.toggle_longitudinal_version()
     stb.download()
 
 
