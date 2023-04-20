@@ -568,6 +568,7 @@ def main():
     # Add the argument for the configuration file
     parser.add_argument('-j', '--config_file', required=True, help='Path to the .json configuration file specifying parameters for shanoir downloading.')
     parser.add_argument('-L', '--longitudinal', required=False, action='store_true', help='Toggle longitudinal approach.')
+    parser.add_argument('-a', '--automri', action='store_true', help='Switch to automri file tree.')
     # Parse arguments
     args = parser.parse_args()
 
@@ -579,6 +580,8 @@ def main():
     stb.set_download_directory(dl_dir=args.output_folder)  # output folder (if None a default directory is created)
     if args.longitudinal:
         stb.toggle_longitudinal_version()
+    if args.automri:
+        stb.switch_to_automri_format()
     stb.download()
 
 
