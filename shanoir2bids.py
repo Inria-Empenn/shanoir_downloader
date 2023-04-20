@@ -170,6 +170,7 @@ class DownloadShanoirDatasetToBIDS:
         self.date_to = None
         self.longitudinal = False
         self.to_automri_format = False # Special filenames for automri (close to BIDS format)
+        self.add_sns = False # Add series number suffix to filename
 
     def set_json_config_file(self, json_file):
         """
@@ -250,6 +251,9 @@ class DownloadShanoirDatasetToBIDS:
 
     def switch_to_automri_format(self):
         self.to_automri_format = True
+
+    def add_series_number_suffix(self):
+        self.add_sns = True
 
     def configure_parser(self):
         """
@@ -358,7 +362,7 @@ Search Text : "{}" \n""".format(search_txt)
                         else:
                             bids_data_dir = opj(subject_dir, bids_seq_subdir)
                             if self.to_automri_format:
-                                bids_data_basename = '_'.join([bids_seq_name])
+                                bids_data_basename = '_'.join([bids_seq_name, su_id])
                             else:
                                 bids_data_basename = '_'.join([subject_id, bids_seq_name])
 
@@ -459,6 +463,15 @@ Search Text : "{}" \n""".format(search_txt)
 
                         # By default, the new data to order is not a duplication
                         duplicated_data = False
+
+                        if self.to_automri_format and self.add_sns:
+                                # Update bids_data_basename with Series Number information
+                                for filename in list_unzipped_files:
+                                    if filename.endswith(JSON):
+                                        f_temp = open(filename)
+                                        json_dataset = json.load(f_temp)
+                                        series_number_suffix = str(json_dataset['SeriesNumber'])
+                                        bids_data_basename = '_'.join([bids_seq_name, su_id, series_number_suffix])
 
                         # Rename every element in the list of files that was in the archive
                         for f in list_unzipped_files:  # Loop over files in the archive
@@ -569,6 +582,7 @@ def main():
     parser.add_argument('-j', '--config_file', required=True, help='Path to the .json configuration file specifying parameters for shanoir downloading.')
     parser.add_argument('-L', '--longitudinal', required=False, action='store_true', help='Toggle longitudinal approach.')
     parser.add_argument('-a', '--automri', action='store_true', help='Switch to automri file tree.')
+    parser.add_argument('-A', '--add_sns', action='store_true', help='Add series number suffix (compatible with -a)')
     # Parse arguments
     args = parser.parse_args()
 
@@ -582,6 +596,10 @@ def main():
         stb.toggle_longitudinal_version()
     if args.automri:
         stb.switch_to_automri_format()
+    if args.add_sns:
+        if not args.automri:
+            print('Warning : -A option is only compatible with -a option.')
+        stb.add_series_number_suffix()
     stb.download()
 
 

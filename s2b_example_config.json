@@ -10,5 +10,10 @@
     {"datasetName": "Diff cusp66 b0 PA 1.5mm", "bidsDir": "dwi", "bidsName": "cusp66-ap-b0"}
   ],
   "dcm2niix":"/home/qduche/Software/dcm2niix_lnx/dcm2niix",
-  "dcm2niix_options": "-v 0 -z y"
+  "dcm2niix_options": "-v 0 -z y",
+  "find_and_replace_subject":
+  [
+    {"find":"VS_Aneravimm_", "replace": "VS"},
+    {"find":"Vs_Aneravimm_", "replace": "VS"}
+  ]
 }
