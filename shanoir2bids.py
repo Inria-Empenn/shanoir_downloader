@@ -276,7 +276,7 @@ class DownloadShanoirDatasetToBIDS:
         banner_msg("Downloading subject " + subject_to_search)
 
         # Open log file to write the steps of processing (downloading, renaming...)
-        fp = open(self.log_fn, 'w')
+        fp = open(self.log_fn, 'a')
 
         # Loop on each sequence defined in the dictionary
         for seq in range(self.n_seq):
@@ -561,6 +561,7 @@ Search Text : "{}" \n""".format(search_txt)
         """
         self.set_log_filename()
         self.configure_parser()  # Configure the shanoir_downloader parser
+        fp = open(self.log_fn, 'w')
         for subject_to_search in self.shanoir_subjects:
             t_start_subject = time()
             self.download_subject(subject_to_search=subject_to_search)
