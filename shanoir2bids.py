@@ -372,7 +372,7 @@ Search Text : "{}" \n""".format(search_txt)
                         Path(bids_data_dir).mkdir(parents=True, exist_ok=True)
 
                         # Extract the downloaded archive
-                        dl_archive = glob(opj(self.dl_dir, item['id'] + '*.zip'))[0]
+                        dl_archive = glob(opj(self.dl_dir, '*' + item['id'] + '*.zip'))[0]
                         with zipfile.ZipFile(dl_archive, 'r') as zip_ref:
                             zip_ref.extractall(tmp_dir)
                         # Get the list of files in the archive
