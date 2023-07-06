@@ -20,6 +20,9 @@ from py7zr import pack_7zarchive, unpack_7zarchive
 shutil.register_archive_format('7zip', pack_7zarchive, description='7zip archive')
 shutil.register_unpack_format('7zip', ['.7z'], unpack_7zarchive)
 
+SHANOIR_SHUTDOWN_HOUR = 2
+SHANOIR_AVAILABLE_HOUR = 5
+
 Path.ls = lambda x: sorted(list(x.iterdir()))
 
 datasets_dtype = {'sequence_id': str, 'shanoir_name': str, 'series_description': str, 'patient_name_in_dicom': str, 'series_description_in_dicom': str}
@@ -208,9 +211,10 @@ def download_datasets(args, config=None, all_datasets=None):
 		n = 1
 		for index, row in datasets_to_download.iterrows():
 
+			# Shanoir server reboot every nigth ; between 3 and 4 AM: sleep until shanoir server is awake 
 			now = datetime.now()
-			if now.hour > 2 and now.hour < 5:
-				future = datetime(now.year, now.month, now.day, 5, 0)
+			if now.hour >= SHANOIR_SHUTDOWN_HOUR and now.hour < SHANOIR_AVAILABLE_HOUR:
+				future = datetime(now.year, now.month, now.day, SHANOIR_AVAILABLE_HOUR, 0)
 				time.sleep((future-now).total_seconds())
 			
 			sequence_id = index
