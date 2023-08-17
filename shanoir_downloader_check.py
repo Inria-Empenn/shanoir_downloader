@@ -168,7 +168,7 @@ def download_datasets(args, config=None, all_datasets=None):
 					all_datasets = all_datasets[all_datasets[column_name] != value]
 			except Exception as e:
 				sys.exit(f'Error while parsing skip_columns argument: {skip_column}\n {e}')
-
+	
 	# Create missing_datasets and downloaded_datasets tsv files
 	missing_datasets_path = output_folder / f'missing_datasets.tsv' if args.missing_datasets is None else Path(args.missing_datasets)
 	downloaded_datasets_path = output_folder / f'downloaded_datasets.tsv' if args.downloaded_datasets is None else Path(args.downloaded_datasets)
