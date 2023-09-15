@@ -200,6 +200,9 @@ class DownloadShanoirDatasetToBIDS:
     def set_shanoir_username(self, shanoir_username):
         self.shanoir_username = shanoir_username
 
+    def set_shanoir_domaine(self, shanoir_domaine): 
+        self.shanoir_domaine = shanoir_domaine
+
     def set_shanoir_subjects(self, subjects):
         self.shanoir_subjects = subjects
 
@@ -299,7 +302,7 @@ class DownloadShanoirDatasetToBIDS:
 
             args = self.parser.parse_args(
                 ['-u', self.shanoir_username,
-                 '-d', 'shanoir.irisa.fr',
+                 '-d', self.shanoir_domaine,
                  '-of', self.dl_dir,
                  '-em',
                  '-st', search_txt,
@@ -590,6 +593,7 @@ def main():
     # Start configuring the DownloadShanoirDatasetToBids class instance
     stb = DownloadShanoirDatasetToBIDS()
     stb.set_shanoir_username(args.username)
+    stb.set_shanoir_domaine(args.domain)
     stb.set_json_config_file(json_file=args.config_file)  # path to json configuration file
     stb.set_shanoir_file_type(shanoir_file_type=args.format)  # Format (dicom or nifti)
     stb.set_download_directory(dl_dir=args.output_folder)  # output folder (if None a default directory is created)
