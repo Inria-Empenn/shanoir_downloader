@@ -1,3 +1,4 @@
+import datetime
 import os
 import requests
 import json
@@ -21,9 +22,12 @@ def add_username_argument(parser):
 def add_output_folder_argument(parser, required=True):
 	parser.add_argument('-of', '--output_folder', required=required, help='The destination folder where files will be downloaded.')
 
+def add_domain_argument(parser):
+	parser.add_argument('-d', '--domain', default='shanoir.irisa.fr', help='The shanoir domain to query.')
+
 def add_common_arguments(parser):
 	add_username_argument(parser)
-	parser.add_argument('-d', '--domain', default='shanoir.irisa.fr', help='The shanoir domain to query.')
+	add_domain_argument(parser)
 	parser.add_argument('-f', '--format', default='nifti', choices=['nifti', 'dicom'], help='The format to download.')
 	add_output_folder_argument(parser)
 
@@ -54,7 +58,7 @@ def init_logging(args):
 
 	verbose = args.verbose
 	
-	logfile = Path(args.log_file) if args.log_file else Path(args.output_folder) / 'downloads.log'
+	logfile = Path(args.log_file) if args.log_file else Path(args.output_folder) / f'downloads{datetime.datetime.now().strftime("%Y-%m-%d_%Hh%Mm%S")}.log'
 	logfile.parent.mkdir(exist_ok=True, parents=True)
 
 	logging.basicConfig(
@@ -85,11 +89,11 @@ def initialize(args):
 
 	init_logging(args)
 	
-	verify = args.certificate if args.certificate != '' else True
+	verify = args.certificate if hasattr(args, 'certificate') and args.certificate != '' else True
 
 	proxy_url = None # 'user:pass@host:port'
 
-	if args.proxy_url:
+	if hasattr(args, 'proxy_url') and args.proxy_url is not None:
 		proxy_a = args.proxy_url.split('@')
 		proxy_user = proxy_a[0]
 		proxy_host = proxy_a[1]
@@ -100,7 +104,7 @@ def initialize(args):
 		
 		configuration_folder = None
 		
-		if args.configuration_folder:
+		if hasattr(args, 'configuration_folder') and args.configuration_folder:
 			configuration_folder = Path(args.configuration_folder)
 		else:
 			cfs = sorted(list(Path.home().glob('.su_v*')))

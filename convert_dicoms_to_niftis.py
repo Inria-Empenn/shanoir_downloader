@@ -44,8 +44,8 @@ def convert_dicom_to_nifti(dicom_directory, output_folder):
     mcverter_command = lambda: call(['mcverter', '-o', output_folder, '-f', 'nifti', '-n', dicom_directory])
 
     # commands = [mcverter_command]
-    commands = [dicom2nifti_command, mricron_dcm2niix_command, dcm2niix_command, mcverter_command, simple_itk_command]
-    commandNames = ['dicom2nifti', 'mricronDcm2niix', 'dcm2niix', 'mcverter', 'simple_itk']
+    commands = [dcm2niix_command, dicom2nifti_command, simple_itk_command, mcverter_command, mricron_dcm2niix_command]
+    commandNames = ['dcm2niix', 'dicom2nifti', 'simple_itk', 'mcverter', 'mricronDcm2niix']
     # commands = [dicom2nifti_command, mricron_dcm2niix_command, dcm2niix_command, mcverter_command]
     # commandNames = ['dicom2nifti', 'mcverter', 'dcm2niix', 'mricronDcm2niix']
 
