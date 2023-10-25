@@ -101,7 +101,6 @@ def createMosaic(imagePaths, previewPath, prefix=''):
     mosaicH.save(str(previewPath / f'{prefix}mosaicH.png'), format='png')
     return
 
-resampler = sitk.ResampleImageFilter()
 newSpacing = (0.5, 0.5, 0.5)
 
 for patientPath in niftis.ls():
@@ -118,6 +117,7 @@ for patientPath in niftis.ls():
         
         size = nifti.GetSize()
         spacing = nifti.GetSpacing()
+        resampler = sitk.ResampleImageFilter()
         resampler.SetSize([ int(size[0] * spacing[0] / newSpacing[0]), int(size[1] * spacing[1] / newSpacing[1]), int(size[2] * spacing[2] / newSpacing[2]) ])
         resampler.SetOutputSpacing(newSpacing)
         resampler.SetOutputOrigin(nifti.GetOrigin())

@@ -20,9 +20,15 @@ def get_first_nifti(path):
 def image_is_readable(image_path):
     if image_path is None: return None
     try:
-        return sitk.ReadImage(str(image_path))
-    except:
-        return None
+        reader = sitk.ImageFileReader()
+        reader.SetFileName(str(image_path))
+        reader.ReadImageInformation()
+        return sitk.GetPixelIDValueAsString(reader.GetPixelID())
+        # return sitk.ReadImage(str(image_path))
+    except Exception as e:
+        print(e)
+        pass
+    return None
 
 def simple_itk_conversion(folder_path, output_path):
     reader = sitk.ImageSeriesReader()

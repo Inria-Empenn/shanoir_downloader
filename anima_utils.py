@@ -60,7 +60,7 @@ def get_registration_options_from_image(refImage):
 # Calls a command, if there are errors: outputs them and exit
 def call(command, stdout=subprocess.DEVNULL):
     command = [str(arg) for arg in command]
-    status = subprocess.call(command, stdout=subprocess.DEVNULL)
+    status = subprocess.call(command, stdout=stdout)
     if status != 0:
         print(' '.join(command) + '\n')
         raise Exception('Command exited with status: ' + str(status), status)
