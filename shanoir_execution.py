@@ -233,9 +233,14 @@ def rest_post(config, url, params=None, files=None, stream=None, json=None, data
 
 # Create a bunch of executions, separated by a delay in ms given in argument
 def createExecutions(config, execution, datasetIds, delay, silent =False):
+    global access_token
+    global refresh_token
+    if access_token is None:
+        access_token = ask_access_token(config)
     for datasets in datasetIds:
         execution["name"] += "_" + datetime.datetime.now().strftime("%m%d%Y%H%M%S")
         execution["parametersRessources"] = [datasets]
+        execution["refreshToken"] = refresh_token
         execution["identifier"] += "_" + datetime.datetime.now().strftime("%m%d%Y%H%M%S")
         createExecution(config, execution, datasets["datasetIds"], silent)
         time.sleep(int(delay))
@@ -244,15 +249,11 @@ def createExecution(config, execution, datasetIds, silent=False):
     if not silent:
         print('Preparing execution')
     url = 'https://' + config['domain'] + '/shanoir-ng/datasets/carmin-data/createExecution'
-    print(json.dumps(execution))
     response = rest_post(config, url, {}, data=json.dumps(execution), raise_for_status=False)
     if (response.status_code == 200):
         print('Execution successfully loaded')
         # Write in file done datasets
         # Remove from parent file done datasets
-    else:
-        # Write in file datasets in error
-        print("Datasets in error: " + str.join(datasetIds, ","))
 
 if __name__ == '__main__':
     parser = create_arg_parser()
