@@ -1,5 +1,8 @@
 import json
 import argparse
+import logging
+import time
+
 import shanoir_util
 from pathlib import Path
 Path.ls = lambda x: sorted(list(x.iterdir()))
@@ -31,6 +34,66 @@ def add_pipeline_arguments(parser):
     parser.add_argument('-exe', '--execution_json', required=True, default='', help='path to the json structure of the executions in a json file')
     return parser
 
+def markAsDone(execution):
+    output_file = Path("./done.txt")
+    output_file.parent.mkdir(exist_ok=True, parents=True)
+    output_file.write_text(json.dumps(execution))
+
+def markAsFailed(execution):
+    output_file = Path("./failed.txt")
+    output_file.parent.mkdir(exist_ok=True, parents=True)
+    output_file.write_text(json.dumps(execution))
+
+
+def createExecution(config, execution):
+    # create execution
+    delay = 1
+    error = True
+    while error:
+        try:
+            created_execution = shanoir_util.createExecution(config, execution)
+            error = False
+        except Exception as exception:
+            logging.error("Error during execution's creation, retrying after " + str(delay) + " seconds. "
+                          + str(exception))
+            time.sleep(delay)
+            # Set a extensive delay, 2, 4, 8 , 16, 32, 1mn, 2mn, 4mn, 8mn, 16mn, 32mn and then stop
+            if delay < 1025:
+                delay = delay + delay
+
+    logging.info("Execution creation success: " + str(created_execution["identifier"]) + ". Waiting for result.")
+
+    # check until execution is over (either finished or in error)
+    result = 'Running'
+    while result == 'Running':
+        logging.info(".")
+        delay = 1
+        error = True
+        while error:
+            try:
+                result_not_string = shanoir_util.getExecutionStatus(config, created_execution["identifier"])
+                error = False
+            except Exception as exception:
+                logging.error("Error during execution's status retrieval, retrying after " + str(delay) + " seconds. "
+                              + str(exception))
+                time.sleep(delay)
+                # Set a extensive delay, 2, 4, 8 , 16, 32, 1mn, 2mn, 4mn, 8mn, 16mn, 32mn and then stop
+                if delay < 1025:
+                    delay = delay + delay
+
+        result = result_not_string.decode()
+        if result == 'Running':
+            time.sleep(30)
+
+    if result == 'Finished':
+        # Mark as done
+        logging.info("Success: " + str(created_execution["identifier"]))
+        markAsDone(execution)
+    else:
+        # Mark as failed
+        logging.info("Error: " + str(result) + " : " + str(created_execution["identifier"]))
+        markAsFailed(execution)
+
 if __name__ == '__main__':
     parser = create_arg_parser()
     add_common_arguments(parser)
@@ -40,27 +103,12 @@ if __name__ == '__main__':
     config = shanoir_util.initialize(args)
 
     with open(args.execution_json) as json_file:
-       executions = json.load(json_file)
+        executions = json.load(json_file)
 
+    count = 0
     for execution in executions:
-        print(execution)
-        # create execution
-        execution = shanoir_util.createExecution(config, execution)
-
-        # check until execution is over
-        result = "RUNNING"
-        while result != "FINISHED":
-            result = shanoir_util.getExecutionStatus(config, execution.identifier)
-
-        # mark as done
-        writeInFile(execution)
-
-        # remove from input
-
-
-        # In case of error, do not stop
-
+        logging.info("Creating execution " + str(count) + " of " + str(len(executions)))
+        createExecution(config, execution)
+        count = count + 1
 
 #python3 ./shanoir_execution.py -lf /tmp/test.log -u jlouis -d shanoir-ng-nginx -exe ./executions.json
-
-

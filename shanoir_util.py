@@ -123,7 +123,7 @@ def ask_access_token(config):
     response = requests.post(url, data=payload, headers=headers, proxies=config['proxies'], verify=config['verify'], timeout=config['timeout'])
     if not hasattr(response, 'status_code') or response.status_code != 200:
         print('Failed to connect, make sur you have a certified IP or are connected on a valid VPN.')
-        sys.exit(1)
+        raise ConnectionError(response.status_code)
 
     response_json = json.loads(response.text)
     if 'error_description' in response_json and response_json['error_description'] == 'Invalid user credentials':
@@ -142,12 +142,11 @@ def refresh_access_token(config):
         'client_id' : 'shanoir-uploader'
     }
     headers = {'content-type': 'application/x-www-form-urlencoded'}
-    print('refresh keycloak token...')
+    logging.info('refresh keycloak token...')
     response = requests.post(url, data=payload, headers=headers, proxies=config['proxies'], verify=config['verify'], timeout=config['timeout'])
     if response.status_code != 200:
         logging.error('response status : {response.status_code}, {responses[response.status_code]}')
     response_json = response.json()
-    print(response_json)
     return response_json['access_token']
 
 def perform_rest_request(config, rtype, url, **kwargs):
@@ -203,18 +202,18 @@ def createExecution(config, execution, silent=False):
     global access_token
     if access_token is None:
         access_token = ask_access_token(config)
+    execution["identifier"]=""
     execution["name"] += "_" + datetime.datetime.now().strftime("%m%d%Y%H%M%S")
     execution["refreshToken"] = refresh_token
+    execution["studyIdentifier"] = 1
     execution["client"]="shanoir-uploader"
     url = 'https://' + config['domain'] + '/shanoir-ng/datasets/carmin-data/createExecution'
     response = rest_post(config, url, {}, data=json.dumps(execution), raise_for_status=False)
-    print(response.content)
-    if response.status_code == 200:
-        print('Execution successfully loaded')
-
-    getExecutionStatus(config, response.json()["identifier"])
+    if response.status_code != 200:
+        logging.error('Error while creating execution' + str(response.status_code) + " : " + str(response.text))
+    return response.json()
 
 def getExecutionStatus(config, identifier):
     url = 'https://' + config['domain'] + '/shanoir-ng/datasets/carmin-data/execution/' + identifier
     response = rest_get(config, url)
-    print(response.content)
+    return response.content
