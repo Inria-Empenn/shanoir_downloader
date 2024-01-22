@@ -209,8 +209,6 @@ def createExecution(config, execution, silent=False):
     execution["client"]="shanoir-uploader"
     url = 'https://' + config['domain'] + '/shanoir-ng/datasets/carmin-data/createExecution'
     response = rest_post(config, url, {}, data=json.dumps(execution), raise_for_status=False)
-    if response.status_code != 200:
-        logging.error('Error while creating execution' + str(response.status_code) + " : " + str(response.text))
     return response.json()
 
 def getExecutionStatus(config, identifier):

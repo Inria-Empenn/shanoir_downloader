@@ -1,6 +1,7 @@
 import json
 import argparse
 import logging
+import os
 import time
 
 import shanoir_util
@@ -34,25 +35,42 @@ def add_pipeline_arguments(parser):
     parser.add_argument('-exe', '--execution_json', required=True, default='', help='path to the json structure of the executions in a json file')
     return parser
 
-def markAsDone(execution):
-    output_file = Path("./done.txt")
-    output_file.parent.mkdir(exist_ok=True, parents=True)
-    output_file.write_text(json.dumps(execution))
+def markAsDone(done_list):
+    done_file = open("./done.txt", "w+")
+    done_file.write(json.dumps(done_list))
+    done_file.close()
 
-def markAsFailed(execution):
-    output_file = Path("./failed.txt")
-    output_file.parent.mkdir(exist_ok=True, parents=True)
-    output_file.write_text(json.dumps(execution))
+def markAsFailed(failed_list):
+    failed_file = open("./failed.txt", "w+")
+    failed_file.write(json.dumps(failed_list))
+    failed_file.close()
 
+def markAsTreated(treated_list):
+    treated_file = open('./treated.txt', "w+")
+    treated_file.write(json.dumps(treated_list))
+    treated_file.close()
 
 def createExecution(config, execution):
+    current_identifier = str(execution["identifier"])
+    failed = []
+    failed_file = open("./failed.txt", "at+")
+    if os.stat("./failed.txt").st_size != 0:
+        failed = json.load(failed_file)
+    failed_file.close()
+
+    done = []
+    done_file = open("./done.txt", "at+")
+    if os.stat("./done.txt").st_size != 0:
+        done = json.load(done_file)
+    done_file.close()
+
     # create execution
     delay = 1
-    error = True
-    while error:
+    error_or_start = True
+    while error_or_start:
         try:
             created_execution = shanoir_util.createExecution(config, execution)
-            error = False
+            error_or_start = False
         except Exception as exception:
             logging.error("Error during execution's creation, retrying after " + str(delay) + " seconds. "
                           + str(exception))
@@ -68,11 +86,11 @@ def createExecution(config, execution):
     while result == 'Running':
         logging.info(".")
         delay = 1
-        error = True
-        while error:
+        error_or_start = True
+        while error_or_start:
             try:
                 result_not_string = shanoir_util.getExecutionStatus(config, created_execution["identifier"])
-                error = False
+                error_or_start = False
             except Exception as exception:
                 logging.error("Error during execution's status retrieval, retrying after " + str(delay) + " seconds. "
                               + str(exception))
@@ -88,11 +106,13 @@ def createExecution(config, execution):
     if result == 'Finished':
         # Mark as done
         logging.info("Success: " + str(created_execution["identifier"]))
-        markAsDone(execution)
+        done.append(current_identifier)
+        markAsDone(done)
     else:
         # Mark as failed
         logging.info("Error: " + str(result) + " : " + str(created_execution["identifier"]))
-        markAsFailed(execution)
+        failed.append(current_identifier)
+        markAsFailed(failed)
 
 if __name__ == '__main__':
     parser = create_arg_parser()
@@ -106,9 +126,22 @@ if __name__ == '__main__':
         executions = json.load(json_file)
 
     count = 0
+    treated = []
+    treatedFile = open("./treated.txt", "at+")
+    if os.stat("./treated.txt").st_size != 0:
+        treated = json.load(treatedFile)
+    treatedFile.close()
+
     for execution in executions:
-        logging.info("Creating execution " + str(count) + " of " + str(len(executions)))
-        createExecution(config, execution)
+        identifier = str(execution["identifier"])
+        if identifier not in treated:
+            logging.info("Creating execution " + str(count) + " of " + str(len(executions)))
+            createExecution(config, execution)
+            treated.append(identifier)
+            markAsTreated(treated)
+        else:
+            logging.info("Execution " + str(identifier) + " already treated, skipping..")
         count = count + 1
 
-#python3 ./shanoir_execution.py -lf /tmp/test.log -u jlouis -d shanoir-ng-nginx -exe ./executions.json
+#python3 ./shanoir_execution.py -lf /tmp/test.log -u XXXX -d shanoir-ng-nginx -exe ./executions.json
+#python3 ./shanoir_execution.py -lf /tmp/test.log -u XXXX -d shanoir-ofsep-qualif.irisa.fr -exe ./executions.json
