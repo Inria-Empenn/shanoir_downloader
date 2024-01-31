@@ -172,6 +172,7 @@ def rest_request(config, rtype, url, raise_for_status=True, **kwargs):
         'charset' : 'utf-8'
     }
     response = perform_rest_request(config, rtype, url, headers=headers, **kwargs)
+    logging.error(response)
     # if token is outdated, refresh it and try again
     if response.status_code == 401:
         access_token = refresh_access_token(config)
@@ -205,10 +206,13 @@ def createExecution(config, execution, silent=False):
     execution["identifier"]=""
     execution["name"] += "_" + datetime.datetime.now().strftime("%m%d%Y%H%M%S")
     execution["refreshToken"] = refresh_token
-    execution["studyIdentifier"] = 1
+    execution["exportFormat"] = "dcm"
+    execution["studyIdentifier"] = 17
     execution["client"]="shanoir-uploader"
     url = 'https://' + config['domain'] + '/shanoir-ng/datasets/carmin-data/createExecution'
     response = rest_post(config, url, {}, data=json.dumps(execution), raise_for_status=False)
+    if response.status_code == 401:
+        return "401"
     return response.json()
 
 def getExecutionStatus(config, identifier):

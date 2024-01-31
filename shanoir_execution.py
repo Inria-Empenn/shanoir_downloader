@@ -3,6 +3,7 @@ import argparse
 import logging
 import os
 import time
+from datetime import datetime
 
 import shanoir_util
 from pathlib import Path
@@ -53,25 +54,33 @@ def markAsTreated(treated_list):
 def createExecution(config, execution):
     current_identifier = str(execution["identifier"])
     failed = []
-    failed_file = open("./failed.txt", "at+")
-    if os.stat("./failed.txt").st_size != 0:
+    if os.path.isfile("./failed.txt") and os.access("./failed.txt", os.R_OK) and os.path.getsize("./failed.txt") > 0:
+        failed_file = open("./failed.txt", "rt+")
         failed = json.load(failed_file)
+    else:
+        failed_file = open("./failed.txt", "w+")
+
     failed_file.close()
 
     done = []
-    done_file = open("./done.txt", "at+")
-    if os.stat("./done.txt").st_size != 0:
+    if os.path.isfile("./done.txt") and os.access("./done.txt", os.R_OK) and os.path.getsize("./done.txt") > 0:
+        done_file = open("./done.txt", "rt+")
         done = json.load(done_file)
+    else:
+        done_file = open("./done.txt", "w+")
     done_file.close()
-
+    result = 'Running'
     # create execution
     delay = 1
     error_or_start = True
     while error_or_start:
         try:
             created_execution = shanoir_util.createExecution(config, execution)
+            if created_execution == "401":
+                result = 'Forbidden'
             error_or_start = False
         except Exception as exception:
+
             logging.error("Error during execution's creation, retrying after " + str(delay) + " seconds. "
                           + str(exception))
             time.sleep(delay)
@@ -79,10 +88,10 @@ def createExecution(config, execution):
             if delay < 1025:
                 delay = delay + delay
 
-    logging.info("Execution creation success: " + str(created_execution["identifier"]) + ". Waiting for result.")
+    if result == "Running":
+        logging.info("Execution creation success: " + str(created_execution["identifier"]) + ". Waiting for result.")
 
     # check until execution is over (either finished or in error)
-    result = 'Running'
     while result == 'Running':
         logging.info(".")
         delay = 1
@@ -110,7 +119,7 @@ def createExecution(config, execution):
         markAsDone(done)
     else:
         # Mark as failed
-        logging.info("Error: " + str(result) + " : " + str(created_execution["identifier"]))
+        logging.info("Error: " + str(result) + " : " + str(created_execution["identifier"] if result != "Forbidden" else current_identifier))
         failed.append(current_identifier)
         markAsFailed(failed)
 
@@ -127,18 +136,25 @@ if __name__ == '__main__':
 
     count = 0
     treated = []
-    treatedFile = open("./treated.txt", "at+")
-    if os.stat("./treated.txt").st_size != 0:
+
+    if os.path.isfile("./treated.txt") and os.access("./treated.txt", os.R_OK) and os.path.getsize("./treated.txt") > 0:
+        treatedFile = open("./treated.txt", "rt+")
         treated = json.load(treatedFile)
+    else:
+        treatedFile = open("./treated.txt", "w+")
+
     treatedFile.close()
 
     for execution in executions:
+        if 1 < datetime.now().hour < 4:
+            # Wait for 4 hours between 1 and 5 in the morning to avoid errors.
+            time.sleep(14400)
         identifier = str(execution["identifier"])
         if identifier not in treated:
             logging.info("Creating execution " + str(count) + " of " + str(len(executions)))
-            createExecution(config, execution)
             treated.append(identifier)
             markAsTreated(treated)
+            createExecution(config, execution)
         else:
             logging.info("Execution " + str(identifier) + " already treated, skipping..")
         count = count + 1
