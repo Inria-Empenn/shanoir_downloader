@@ -63,8 +63,8 @@
     {"datasetName": "T1 MPRAGE CERV", "bidsDir": "spinalCord", "bidsName": "t1Sag", "bidsSession": "M00"}
 
   ],
-  "dcm2niix":"/home/mgaubert/Software/dcm2niix/dcm2niix_v1.0.20211006/dcm2niix",
-  "dcm2niix_options": "-v 0 -z y -ba n"
+  "dcm2niix":"~/softs/miniconda3/bin/dcm2niix",
+  "dcm2niix_options": {"verbose": true,"compress": "y", "anon_bids": false}
 }
 
 	
