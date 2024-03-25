@@ -6,20 +6,22 @@ shanoir2bids.py is a script that allows to download a Shanoir dataset and organi
 # Script to download and BIDS-like organize data on Shanoir using "shanoir_downloader.py" developed by Arthur Masson
 # @Author: Malo Gaubert <malo.gaubert@irisa.fr>, Quentin Duché <quentin.duche@irisa.fr>
 # @Date: 24 Juin 2022
+
 import os
-import sys
-import zipfile
-import json
-import shutil
-import shanoir_downloader
-from dotenv import load_dotenv
-from pathlib import Path
 from os.path import join as opj, splitext as ops, exists as ope, dirname as opd
 from glob import glob
+import sys
+from pathlib import Path
 from time import time
+import zipfile
 import datetime
+import tempfile
 from dateutil import parser
+import json
+import shutil
 
+import shanoir_downloader
+from dotenv import load_dotenv
 from heudiconv.main import workflow
 
 
@@ -238,7 +240,6 @@ class DownloadShanoirDatasetToBIDS:
         self.log_fn = None
         self.dcm2niix_path = None  # Path to the dcm2niix the user wants to use
         self.dcm2niix_opts = None  # Options to add to the dcm2niix call
-        self.dcm2niix_config_file = None  # .json file to store dcm2niix options
         self.date_from = None
         self.date_to = None
         self.longitudinal = False
@@ -303,11 +304,10 @@ class DownloadShanoirDatasetToBIDS:
         self.dcm2niix_path = dcm2niix_path
         self.dcm2niix_opts = dcm2niix_opts
 
-    def set_dcm2niix_config_files(self, path_dcm2niix_options_files):
-        self.dcm2niix_config_file = path_dcm2niix_options_files
+    def export_dcm2niix_config_options(self, path_dcm2niix_options_file):
         # Serializing json
         json_object = json.dumps(self.dcm2niix_opts, indent=4)
-        with open(self.dcm2niix_config_file, "w") as file:
+        with open(path_dcm2niix_options_file, "w") as file:
             file.write(json_object)
 
     def set_date_from(self, date_from):
@@ -340,9 +340,15 @@ class DownloadShanoirDatasetToBIDS:
 
     def set_heuristic_file(self, path_heuristic_file):
         if path_heuristic_file is None:
-            print("TO BE DONE")
+            print(f"No heuristic file provided")
         else:
-            self.heuristic_file = path_heuristic_file
+            filename, ext = ops(path_heuristic_file)
+            if ext != ".py":
+                print(
+                    f"Provided heuristic file {path_heuristic_file} is not a .py file as expected"
+                )
+            else:
+                self.heuristic_file = path_heuristic_file
 
     def set_log_filename(self):
         curr_time = datetime.datetime.now()
@@ -388,192 +394,205 @@ class DownloadShanoirDatasetToBIDS:
         # Open log file to write the steps of processing (downloading, renaming...)
         fp = open(self.log_fn, "a")
 
-        # Real Shanoir2Bids mapping ( deal with search terms are included in datasetName field)
+        # Real Shanoir2Bids mapping (handle case when solr search term are included)
         bids_mapping = []
 
-        # Loop on each sequence defined in the dictionary
-        for seq in range(self.n_seq):
-            # Isolate elements that are called many times
-            shanoir_seq_name = self.shanoir2bids_dict[seq][
-                K_DS_NAME
-            ]  # Shanoir sequence name (OLD)
-            bids_seq_subdir = self.shanoir2bids_dict[seq][
-                K_BIDS_DIR
-            ]  # Sequence BIDS subdirectory name (NEW)
-            bids_seq_name = self.shanoir2bids_dict[seq][
-                K_BIDS_NAME
-            ]  # Sequence BIDS nickname (NEW)
-            if self.longitudinal:
-                bids_seq_session = self.shanoir2bids_dict[seq][
-                    K_BIDS_SES
-                ]  # Sequence BIDS nickname (NEW)
+        # temporary directory containing dowloaded DICOM.zip files
+        with tempfile.TemporaryDirectory(dir=self.dl_dir) as tmp_dicom:
+            with tempfile.TemporaryDirectory(
+                dir=self.dl_dir
+            ) as tmp_archive:
+                print(tmp_archive)
+                # Loop on each sequence defined in the dictionary
+                for seq in range(self.n_seq):
+                    # Isolate elements that are called many times
+                    shanoir_seq_name = self.shanoir2bids_dict[seq][
+                        K_DS_NAME
+                    ]  # Shanoir sequence name (OLD)
+                    bids_seq_subdir = self.shanoir2bids_dict[seq][
+                        K_BIDS_DIR
+                    ]  # Sequence BIDS subdirectory name (NEW)
+                    bids_seq_name = self.shanoir2bids_dict[seq][
+                        K_BIDS_NAME
+                    ]  # Sequence BIDS nickname (NEW)
+                    if self.longitudinal:
+                        bids_seq_session = self.shanoir2bids_dict[seq][
+                            K_BIDS_SES
+                        ]  # Sequence BIDS nickname (NEW)
 
-            # Print message concerning the sequence that is being downloaded
-            print(
-                "\t-",
-                bids_seq_name,
-                subject_to_search,
-                "[" + str(seq + 1) + "/" + str(self.n_seq) + "]",
-            )
-
-            # Initialize the parser
-            search_txt = (
-                "studyName:"
-                + self.shanoir_study_id.replace(" ", "?")
-                + " AND datasetName:"
-                + shanoir_seq_name.replace(" ", "?")
-                + " AND subjectName:"
-                + subject_to_search.replace(" ", "?")
-                + " AND examinationComment:"
-                + self.shanoir_session_id.replace(" ", "*")
-                + " AND examinationDate:["
-                + self.date_from
-                + " TO "
-                + self.date_to
-                + "]"
-            )
-
-            args = self.parser.parse_args(
-                [
-                    "-u",
-                    self.shanoir_username,
-                    "-d",
-                    self.shanoir_domaine,
-                    "-of",
-                    self.dl_dir,
-                    "-em",
-                    "-st",
-                    search_txt,
-                    "-s",
-                    "200",
-                    "-f",
-                    self.shanoir_file_type,
-                    "-so",
-                    "id,ASC",
-                    "-t",
-                    "500",
-                ]
-            )  # Increase time out for heavy files
-
-            config = shanoir_downloader.initialize(args)
-            response = shanoir_downloader.solr_search(config, args)
-
-            # From response, process the data
-            # Print the number of items found and a list of these items
-            if response.status_code == 200:
-                # Invoke shanoir_downloader to download all the data
-                shanoir_downloader.download_search_results(config, args, response)
-
-                if len(response.json()["content"]) == 0:
-                    warn_msg = """WARNING ! The Shanoir request returned 0 result. Make sure the following search text returns 
-a result on the website.
-Search Text : "{}" \n""".format(
-                        search_txt
+                    # Print message concerning the sequence that is being downloaded
+                    print(
+                        "\t-",
+                        bids_seq_name,
+                        subject_to_search,
+                        "[" + str(seq + 1) + "/" + str(self.n_seq) + "]",
                     )
-                    print(warn_msg)
-                    fp.write(warn_msg)
-                else:
-                    for item in response.json()["content"]:
-                        # Define subject_id
-                        su_id = item["subjectName"]
-                        # If the user has defined a list of edits to subject names... then do the find and replace
-                        for far in self.list_fars:
-                            su_id = su_id.replace(far[K_FIND], far[K_REPLACE])
 
-                        # ID of the subject (sub-*)
-                        subject_id = su_id
-                        # correct BIDS mapping of the searched dataset
-                        bids_seq_mapping = {
-                            "datasetName": item["datasetName"],
-                            "bidsDir": bids_seq_subdir,
-                            "bidsName": bids_seq_name,
-                            "bids_subject_id": subject_id,
-                        }
+                    # Initialize the parser
+                    search_txt = (
+                        "studyName:"
+                        + self.shanoir_study_id.replace(" ", "?")
+                        + " AND datasetName:"
+                        + shanoir_seq_name.replace(" ", "?")
+                        + " AND subjectName:"
+                        + subject_to_search.replace(" ", "?")
+                        + " AND examinationComment:"
+                        + self.shanoir_session_id.replace(" ", "*")
+                        + " AND examinationDate:["
+                        + self.date_from
+                        + " TO "
+                        + self.date_to
+                        + "]"
+                    )
 
-                        if self.longitudinal:
-                            bids_seq_mapping["bids_session_id"] = bids_seq_session
-                        else:
-                            bids_seq_mapping["bids_session_id"] = None
-
-                        bids_mapping.append(bids_seq_mapping)
-
-                        # Write the information on the data in the log file
-                        fp.write("- datasetId = " + str(item["datasetId"]) + "\n")
-                        fp.write("  -- studyName: " + item["studyName"] + "\n")
-                        fp.write("  -- subjectName: " + item["subjectName"] + "\n")
-                        fp.write("  -- session: " + item["examinationComment"] + "\n")
-                        fp.write("  -- datasetName: " + item["datasetName"] + "\n")
-                        fp.write(
-                            "  -- examinationDate: " + item["examinationDate"] + "\n"
-                        )
-                        fp.write("  >> Downloading archive OK\n")
-
-                        # Create temp directory to make sure the directory is empty before
-                        # TODO: Replace with temp directory ?
-                        tmp_dir = opj(self.dl_dir, "temp_archive")
-                        Path(tmp_dir).mkdir(parents=True, exist_ok=True)
-
-                        # Extract the downloaded archive
-                        dl_archive = glob(opj(self.dl_dir, "*" + item["id"] + "*.zip"))[
-                            0
+                    args = self.parser.parse_args(
+                        [
+                            "-u",
+                            self.shanoir_username,
+                            "-d",
+                            self.shanoir_domaine,
+                            "-of",
+                            tmp_archive,
+                            "-em",
+                            "-st",
+                            search_txt,
+                            "-s",
+                            "200",
+                            "-f",
+                            self.shanoir_file_type,
+                            "-so",
+                            "id,ASC",
+                            "-t",
+                            "500",
                         ]
-                        with zipfile.ZipFile(dl_archive, "r") as zip_ref:
-                            extraction_dir = opj(tmp_dir, item["id"])
-                            zip_ref.extractall(extraction_dir)
+                    )  # Increase time out for heavy files
 
+                    config = shanoir_downloader.initialize(args)
+                    response = shanoir_downloader.solr_search(config, args)
+
+                    # From response, process the data
+                    # Print the number of items found and a list of these items
+                    if response.status_code == 200:
+                        # Invoke shanoir_downloader to download all the data
+                        shanoir_downloader.download_search_results(
+                            config, args, response
+                        )
+
+                        if len(response.json()["content"]) == 0:
+                            warn_msg = """WARNING ! The Shanoir request returned 0 result. Make sure the following search text returns 
+        a result on the website.
+        Search Text : "{}" \n""".format(
+                                search_txt
+                            )
+                            print(warn_msg)
+                            fp.write(warn_msg)
+                        else:
+                            for item in response.json()["content"]:
+                                # Define subject_id
+                                su_id = item["subjectName"]
+                                # If the user has defined a list of edits to subject names... then do the find and replace
+                                for far in self.list_fars:
+                                    su_id = su_id.replace(far[K_FIND], far[K_REPLACE])
+
+                                # ID of the subject (sub-*)
+                                subject_id = su_id
+                                # correct BIDS mapping of the searched dataset
+                                bids_seq_mapping = {
+                                    "datasetName": item["datasetName"],
+                                    "bidsDir": bids_seq_subdir,
+                                    "bidsName": bids_seq_name,
+                                    "bids_subject_id": subject_id,
+                                }
+
+                                if self.longitudinal:
+                                    bids_seq_mapping[
+                                        "bids_session_id"
+                                    ] = bids_seq_session
+                                else:
+                                    bids_seq_mapping["bids_session_id"] = None
+
+                                bids_mapping.append(bids_seq_mapping)
+
+                                # Write the information on the data in the log file
+                                fp.write(
+                                    "- datasetId = " + str(item["datasetId"]) + "\n"
+                                )
+                                fp.write("  -- studyName: " + item["studyName"] + "\n")
+                                fp.write(
+                                    "  -- subjectName: " + item["subjectName"] + "\n"
+                                )
+                                fp.write(
+                                    "  -- session: " + item["examinationComment"] + "\n"
+                                )
+                                fp.write(
+                                    "  -- datasetName: " + item["datasetName"] + "\n"
+                                )
+                                fp.write(
+                                    "  -- examinationDate: "
+                                    + item["examinationDate"]
+                                    + "\n"
+                                )
+                                fp.write("  >> Downloading archive OK\n")
+
+                                # Extract the downloaded archive
+                                dl_archive = glob(
+                                    opj(tmp_archive, "*" + item["id"] + "*.zip")
+                                )[0]
+                                with zipfile.ZipFile(dl_archive, "r") as zip_ref:
+                                    extraction_dir = opj(tmp_dicom, item["id"])
+                                    zip_ref.extractall(extraction_dir)
+
+                                fp.write(
+                                    "  >> Extraction of all files from archive '"
+                                    + dl_archive
+                                    + " into "
+                                    + extraction_dir
+                                    + "\n"
+                                )
+
+                    elif response.status_code == 204:
+                        banner_msg("ERROR : No file found!")
+                        fp.write("  >> ERROR : No file found!\n")
+                    else:
+                        banner_msg(
+                            "ERROR : Returned by the request: status of the response = "
+                            + response.status_code
+                        )
                         fp.write(
-                            "  >> Extraction of all files from archive '"
-                            + dl_archive
-                            + " into "
-                            + tmp_dir
-                            + item["id"]
+                            "  >> ERROR : Returned by the request: status of the response = "
+                            + str(response.status_code)
                             + "\n"
                         )
 
-            elif response.status_code == 204:
-                banner_msg("ERROR : No file found!")
-                fp.write("  >> ERROR : No file found!\n")
-            else:
-                banner_msg(
-                    "ERROR : Returned by the request: status of the response = "
-                    + response.status_code
-                )
-                fp.write(
-                    "  >> ERROR : Returned by the request: status of the response = "
-                    + str(response.status_code)
-                    + "\n"
-                )
-        # Generate Heudiconv heuristic file from .json mapping
-        generate_heuristic_file(bids_mapping, self.heuristic_file)
-        # Launch DICOM to BIDS conversion using heudiconv + heuristic file + dcm2niix options
+            # Launch DICOM to BIDS conversion using heudiconv + heuristic file + dcm2niix options
+            with tempfile.NamedTemporaryFile(mode='r+',
+                encoding="utf-8", dir=self.dl_dir, suffix=".py"
+            ) as heuristic_file:
+                # Generate Heudiconv heuristic file from configuration.json mapping
+                generate_heuristic_file(bids_mapping, heuristic_file.name)
+                with tempfile.NamedTemporaryFile(mode='r+',
+                    encoding="utf-8", dir=self.dl_dir, suffix=".json"
+                ) as dcm2niix_config_file:
+                    self.export_dcm2niix_config_options(dcm2niix_config_file.name)
+                    workflow_params = {
+                        "files": glob(
+                            opj(tmp_dicom, "*", "*.dcm"), recursive=True
+                        ),
+                        "outdir": opj(self.dl_dir, str(self.shanoir_study_id)),
+                        "subjs": [subject_id],
+                        "converter": "dcm2niix",
+                        "heuristic": heuristic_file.name,
+                        "bids_options": "--bids",
+                        "dcmconfig": dcm2niix_config_file.name,
+                        "datalad": True,
+                        "minmeta": True,
+                    }
 
-        if self.longitudinal:
-            workflow(
-                files=glob(opj(self.dl_dir, 'temp_archive', "*", "*.dcm"), recursive=True),
-                outdir=opj(self.dl_dir, "test"),
-                subjs=[subject_id],
-                session = bids_seq_session,
-                converter="dcm2niix",
-                heuristic=self.heuristic_file,
-                bids_options='--bids',
-                dcmconfig=self.dcm2niix_config_file,
-                datalad=True,
-                minmeta=True,
-            )
-        else:
+                    if self.longitudinal:
+                        workflow_params["session"] = bids_seq_session
 
-            workflow(
-                files=glob(opj(self.dl_dir,'temp_archive',"*", "*.dcm"), recursive=True),
-                outdir=opj(self.dl_dir, "test"),
-                subjs=[subject_id],
-                converter="dcm2niix",
-                heuristic=self.heuristic_file,
-                bids_options='--bids',
-                dcmconfig=self.dcm2niix_config_file,
-                datalad=True,
-                minmeta=True,
-            )
-        fp.close()
+                    workflow(**workflow_params)
+                    fp.close()
 
     def download(self):
         """
@@ -652,10 +671,10 @@ def main():
     stb.set_download_directory(
         dl_dir=args.output_folder
     )  # output folder (if None a default directory is created)
-    stb.set_heuristic_file(path_heuristic_file="/home/alpron/heuristic.py")
-    stb.set_dcm2niix_config_files(
-        path_dcm2niix_options_files="/home/alpron/dcm2niix_options.json"
-    )
+    # stb.set_heuristic_file(path_heuristic_file="/home/alpron/heuristic.py")
+    # stb.set_dcm2niix_config_files(
+    #     path_dcm2niix_options_files="/home/alpron/dcm2niix_options.json"
+    # )
     if args.longitudinal:
         stb.toggle_longitudinal_version()
     # if args.automri:
