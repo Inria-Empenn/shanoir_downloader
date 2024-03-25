@@ -1,0 +1,9 @@
+{
+  "identifier": "ofsep_sequences_identification/0.2",
+  "name": "TestJCD",
+  "pipelineIdentifier": "ofsep_sequences_identification/0.2",
+  "studyIdentifier":  "20",
+  "outputProcessing": "",
+  "processingType":  "SEGMENTATION",
+  "parametersRessources": []
+}
