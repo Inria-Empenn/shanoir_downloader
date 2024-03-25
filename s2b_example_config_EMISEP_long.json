@@ -4,8 +4,8 @@
   "session": "08-74 MO ENCEPHALE",
   "data_to_bids":
   [
-    {"datasetName": "3D T1 MPRAGE", "bidsDir": "brain", "bidsName": "t1w", "bidsSession": "M00"},
-    {"datasetName": "*3d flair*", "bidsDir": "brain", "bidsName": "flair", "bidsSession": "M00"},
+    {"datasetName": "3D T1 MPRAGE", "bidsDir": "brain", "bidsName": "T1w", "bidsSession": "M00"},
+    {"datasetName": "*3d flair*", "bidsDir": "brain", "bidsName": "FLAIR", "bidsSession": "M00"},
     {"datasetName": "*c1c3*", "bidsDir": "spinalCord", "bidsName": "t2ax_C1C3", "bidsSession": "M00"},
     {"datasetName": "*c1-c3*", "bidsDir": "spinalCord", "bidsName": "t2ax_C1C3", "bidsSession": "M00"},
 
@@ -64,7 +64,7 @@
 
   ],
   "dcm2niix":"~/softs/miniconda3/bin/dcm2niix",
-  "dcm2niix_options": {"verbose": true,"compress": "y", "anon_bids": false}
+  "dcm2niix_options": {"verbose": true,"compress": "y", "anon_bids": true}
 }
 
 	
