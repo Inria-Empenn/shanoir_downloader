@@ -18,11 +18,14 @@ import datetime
 import tempfile
 from dateutil import parser
 import json
+import logging
 import shutil
 
 import shanoir_downloader
 from dotenv import load_dotenv
 from heudiconv.main import workflow
+# import loggger used in heudiconv workflow
+from heudiconv.main import lgr
 
 
 # Load environment variables
@@ -180,7 +183,8 @@ def generate_heuristic_file(
     heuristic = f"""from heudiconv.heuristics.reproin import create_key
 
 def create_bids_key(dataset):
-    template = create_key(subdir=dataset['bidsDir'],file_suffix=dataset['bidsName'],outtype=("dicom","nii.gz"))
+     
+    template = create_key(subdir=dataset['bidsDir'],file_suffix=r"run-{{item:02d}}_" + dataset['bidsName'],outtype=("dicom","nii.gz"))
     return template
 
 def get_dataset_to_key_mapping(shanoir2bids):
@@ -190,6 +194,16 @@ def get_dataset_to_key_mapping(shanoir2bids):
         dataset_to_key[dataset['datasetName']] = template
     return dataset_to_key
 
+def simplify_runs(info):
+    info_final = dict()
+    for key in info.keys():
+        if len(info[key])==1:
+            new_template = key[0].replace('run-{{item:02d}}_','')
+            new_key = (new_template, key[1], key[2])
+            info_final[new_key] = info[key]
+        else:
+            info_final[key] = info[key]
+    return info_final
 
 def infotodict(seqinfo):
 
@@ -204,7 +218,9 @@ def infotodict(seqinfo):
                 info[key].append(seq.series_id)
             else:
                 info[key] = [seq.series_id]
-    return info
+    # remove run- key if not needed (one run only)
+    info_final = simplify_runs(info)      
+    return info_final
 """
 
     with open(path_heuristic_file, "w", encoding="utf-8") as file:
@@ -396,12 +412,9 @@ class DownloadShanoirDatasetToBIDS:
 
         # Real Shanoir2Bids mapping (handle case when solr search term are included)
         bids_mapping = []
-
         # temporary directory containing dowloaded DICOM.zip files
         with tempfile.TemporaryDirectory(dir=self.dl_dir) as tmp_dicom:
-            with tempfile.TemporaryDirectory(
-                dir=self.dl_dir
-            ) as tmp_archive:
+            with tempfile.TemporaryDirectory(dir=self.dl_dir) as tmp_archive:
                 print(tmp_archive)
                 # Loop on each sequence defined in the dictionary
                 for seq in range(self.n_seq):
@@ -565,33 +578,35 @@ class DownloadShanoirDatasetToBIDS:
                         )
 
             # Launch DICOM to BIDS conversion using heudiconv + heuristic file + dcm2niix options
-            with tempfile.NamedTemporaryFile(mode='r+',
-                encoding="utf-8", dir=self.dl_dir, suffix=".py"
+            with tempfile.NamedTemporaryFile(
+                mode="r+", encoding="utf-8", dir=self.dl_dir, suffix=".py"
             ) as heuristic_file:
                 # Generate Heudiconv heuristic file from configuration.json mapping
                 generate_heuristic_file(bids_mapping, heuristic_file.name)
-                with tempfile.NamedTemporaryFile(mode='r+',
-                    encoding="utf-8", dir=self.dl_dir, suffix=".json"
+                with tempfile.NamedTemporaryFile(
+                    mode="r+", encoding="utf-8", dir=self.dl_dir, suffix=".json"
                 ) as dcm2niix_config_file:
                     self.export_dcm2niix_config_options(dcm2niix_config_file.name)
                     workflow_params = {
-                        "files": glob(
-                            opj(tmp_dicom, "*", "*.dcm"), recursive=True
-                        ),
+                        "files": glob(opj(tmp_dicom, "*", "*.dcm"), recursive=True),
                         "outdir": opj(self.dl_dir, str(self.shanoir_study_id)),
                         "subjs": [subject_id],
                         "converter": "dcm2niix",
                         "heuristic": heuristic_file.name,
                         "bids_options": "--bids",
+                        # "with_prov": True,
                         "dcmconfig": dcm2niix_config_file.name,
                         "datalad": True,
                         "minmeta": True,
+                        "grouping": "all",  # other options are too restrictive (tested on EMISEP)
                     }
 
                     if self.longitudinal:
                         workflow_params["session"] = bids_seq_session
 
                     workflow(**workflow_params)
+                    # TODO add nipype logging into shanoir log file ?
+                    # TODO use provenance option ? currently not working properly
                     fp.close()
 
     def download(self):
