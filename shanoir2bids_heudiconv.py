@@ -24,6 +24,7 @@ import shutil
 import shanoir_downloader
 from dotenv import load_dotenv
 from heudiconv.main import workflow
+
 # import loggger used in heudiconv workflow
 from heudiconv.main import lgr
 
@@ -172,7 +173,7 @@ def read_json_config_file(json_file):
 
 
 def generate_heuristic_file(
-    shanoir2bids_dict: object, path_heuristic_file: object
+    shanoir2bids_dict: object, path_heuristic_file: object, output_type
 ) -> None:
     """Generate heudiconv heuristic.py file from shanoir2bids mapping dict
     Parameters
@@ -180,11 +181,18 @@ def generate_heuristic_file(
     shanoir2bids_dict :
     path_heuristic_file : path of the python heuristic file (.py)
     """
+    if output_type == 'dicom':
+        outtype = '("dicom",)'
+    elif output_type == 'nifti':
+        outtype = '("nii.gz",)'
+    else:
+        outtype = '("dicom","nii.gz")'
+
     heuristic = f"""from heudiconv.heuristics.reproin import create_key
 
 def create_bids_key(dataset):
      
-    template = create_key(subdir=dataset['bidsDir'],file_suffix=r"run-{{item:02d}}_" + dataset['bidsName'],outtype=("dicom","nii.gz"))
+    template = create_key(subdir=dataset['bidsDir'],file_suffix=r"run-{{item:02d}}_" + dataset['bidsName'],outtype={outtype})
     return template
 
 def get_dataset_to_key_mapping(shanoir2bids):
@@ -248,6 +256,7 @@ class DownloadShanoirDatasetToBIDS:
         self.shanoir_file_type = (
             DEFAULT_SHANOIR_FILE_TYPE  # Default download type (nifti/dicom)
         )
+        self.output_file_type = DEFAULT_SHANOIR_FILE_TYPE
         self.json_config_file = None
         self.list_fars = []  # List of substrings to edit in subjects names
         self.dl_dir = None  # download directory, where data will be stored
@@ -297,6 +306,12 @@ class DownloadShanoirDatasetToBIDS:
             self.shanoir_file_type = shanoir_file_type
         else:
             sys.exit("Unknown shanoir file type {}".format(shanoir_file_type))
+
+    def set_output_file_type(self, output_file_type):
+        if output_file_type in [SHANOIR_FILE_TYPE_DICOM, SHANOIR_FILE_TYPE_NIFTI, 'both']:
+            self.shanoir_file_type = output_file_type
+        else:
+            sys.exit("Unknown shanoir file type {}".format(output_file_type))
 
     def set_shanoir_study_id(self, study_id):
         self.shanoir_study_id = study_id
@@ -353,18 +368,6 @@ class DownloadShanoirDatasetToBIDS:
         if not ope(self.dl_dir):
             Path(self.dl_dir).mkdir(parents=True, exist_ok=True)
         self.set_log_filename()
-
-    def set_heuristic_file(self, path_heuristic_file):
-        if path_heuristic_file is None:
-            print(f"No heuristic file provided")
-        else:
-            filename, ext = ops(path_heuristic_file)
-            if ext != ".py":
-                print(
-                    f"Provided heuristic file {path_heuristic_file} is not a .py file as expected"
-                )
-            else:
-                self.heuristic_file = path_heuristic_file
 
     def set_log_filename(self):
         curr_time = datetime.datetime.now()
@@ -582,7 +585,7 @@ class DownloadShanoirDatasetToBIDS:
                 mode="r+", encoding="utf-8", dir=self.dl_dir, suffix=".py"
             ) as heuristic_file:
                 # Generate Heudiconv heuristic file from configuration.json mapping
-                generate_heuristic_file(bids_mapping, heuristic_file.name)
+                generate_heuristic_file(bids_mapping, heuristic_file.name, output_type=self.output_file_type)
                 with tempfile.NamedTemporaryFile(
                     mode="r+", encoding="utf-8", dir=self.dl_dir, suffix=".json"
                 ) as dcm2niix_config_file:
@@ -641,13 +644,20 @@ def main():
         default="shanoir.irisa.fr",
         help="The shanoir domain to query.",
     )
+    # parser.add_argument(
+    #     "-f",
+    #     "--format",
+    #     default="dicom",
+    #     choices=["dicom"],
+    #     help="The format to download.",
+    # )
     parser.add_argument(
-        "-f",
-        "--format",
-        default="dicom",
-        choices=["dicom"],
+        "--outformat",
+        default="nifti",
+        choices=["nifti", "dicom", "both"],
         help="The format to download.",
     )
+
     shanoir_downloader.add_output_folder_argument(parser=parser, required=False)
     # Add the argument for the configuration file
     parser.add_argument(
@@ -663,6 +673,7 @@ def main():
         action="store_true",
         help="Toggle longitudinal approach.",
     )
+
     # parser.add_argument(
     #     "-a", "--automri", action="store_true", help="Switch to automri file tree."
     # )
@@ -682,14 +693,11 @@ def main():
     stb.set_json_config_file(
         json_file=args.config_file
     )  # path to json configuration file
-    stb.set_shanoir_file_type(shanoir_file_type=args.format)  # Format (dicom or nifti)
+    stb.set_output_file_type(output_file_type=args.outformat)
     stb.set_download_directory(
         dl_dir=args.output_folder
     )  # output folder (if None a default directory is created)
-    # stb.set_heuristic_file(path_heuristic_file="/home/alpron/heuristic.py")
-    # stb.set_dcm2niix_config_files(
-    #     path_dcm2niix_options_files="/home/alpron/dcm2niix_options.json"
-    # )
+
     if args.longitudinal:
         stb.toggle_longitudinal_version()
     # if args.automri:
