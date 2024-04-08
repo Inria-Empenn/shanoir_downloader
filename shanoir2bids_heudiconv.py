@@ -384,12 +384,6 @@ class DownloadShanoirDatasetToBIDS:
     def toggle_longitudinal_version(self):
         self.longitudinal = True
 
-    def switch_to_automri_format(self):
-        self.to_automri_format = True
-
-    def add_series_number_suffix(self):
-        self.add_sns = True
-
     def configure_parser(self):
         """
         Configure the parser and the configuration of the shanoir_downloader
@@ -418,7 +412,6 @@ class DownloadShanoirDatasetToBIDS:
         # temporary directory containing dowloaded DICOM.zip files
         with tempfile.TemporaryDirectory(dir=self.dl_dir) as tmp_dicom:
             with tempfile.TemporaryDirectory(dir=self.dl_dir) as tmp_archive:
-                print(tmp_archive)
                 # Loop on each sequence defined in the dictionary
                 for seq in range(self.n_seq):
                     # Isolate elements that are called many times
@@ -644,13 +637,7 @@ def main():
         default="shanoir.irisa.fr",
         help="The shanoir domain to query.",
     )
-    # parser.add_argument(
-    #     "-f",
-    #     "--format",
-    #     default="dicom",
-    #     choices=["dicom"],
-    #     help="The format to download.",
-    # )
+
     parser.add_argument(
         "--outformat",
         default="nifti",
@@ -674,16 +661,6 @@ def main():
         help="Toggle longitudinal approach.",
     )
 
-    # parser.add_argument(
-    #     "-a", "--automri", action="store_true", help="Switch to automri file tree."
-    # )
-    # parser.add_argument(
-    #     "-A",
-    #     "--add_sns",
-    #     action="store_true",
-    #     help="Add series number suffix (compatible with -a)",
-    # )
-    # Parse arguments
     args = parser.parse_args()
 
     # Start configuring the DownloadShanoirDatasetToBids class instance
@@ -700,12 +677,6 @@ def main():
 
     if args.longitudinal:
         stb.toggle_longitudinal_version()
-    # if args.automri:
-    #     stb.switch_to_automri_format()
-    # if args.add_sns:
-    #     if not args.automri:
-    #         print("Warning : -A option is only compatible with -a option.")
-    #     stb.add_series_number_suffix()
 
     stb.download()
 
