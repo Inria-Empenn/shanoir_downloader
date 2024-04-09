@@ -173,7 +173,7 @@ def read_json_config_file(json_file):
 
 
 def generate_heuristic_file(
-    shanoir2bids_dict: object, path_heuristic_file: object, output_type
+    shanoir2bids_dict: object, path_heuristic_file: object, output_type='("dicom","nii.gz")'
 ) -> None:
     """Generate heudiconv heuristic.py file from shanoir2bids mapping dict
     Parameters
@@ -233,7 +233,6 @@ def infotodict(seqinfo):
 
     with open(path_heuristic_file, "w", encoding="utf-8") as file:
         file.write(heuristic)
-        file.close()
     pass
 
 
@@ -253,10 +252,8 @@ class DownloadShanoirDatasetToBIDS:
         self.shanoir_username = None  # Shanoir username
         self.shanoir_study_id = None  # Shanoir study ID
         self.shanoir_session_id = None  # Shanoir study ID
-        self.shanoir_file_type = (
-            DEFAULT_SHANOIR_FILE_TYPE  # Default download type (nifti/dicom)
-        )
-        self.output_file_type = DEFAULT_SHANOIR_FILE_TYPE
+        self.shanoir_file_type = SHANOIR_FILE_TYPE_DICOM  # Download File Type (DICOM)
+        self.output_file_type = DEFAULT_SHANOIR_FILE_TYPE # Default Export File Type (NIFTI)
         self.json_config_file = None
         self.list_fars = []  # List of substrings to edit in subjects names
         self.dl_dir = None  # download directory, where data will be stored
@@ -301,17 +298,11 @@ class DownloadShanoirDatasetToBIDS:
         self.set_date_from(date_from=date_from)
         self.set_date_to(date_to=date_to)
 
-    def set_shanoir_file_type(self, shanoir_file_type):
-        if shanoir_file_type in [SHANOIR_FILE_TYPE_DICOM, SHANOIR_FILE_TYPE_NIFTI]:
-            self.shanoir_file_type = shanoir_file_type
+    def set_output_file_type(self, outfile_type):
+        if outfile_type in [SHANOIR_FILE_TYPE_DICOM, SHANOIR_FILE_TYPE_NIFTI, 'both']:
+            self.output_file_type = outfile_type
         else:
-            sys.exit("Unknown shanoir file type {}".format(shanoir_file_type))
-
-    def set_output_file_type(self, output_file_type):
-        if output_file_type in [SHANOIR_FILE_TYPE_DICOM, SHANOIR_FILE_TYPE_NIFTI, 'both']:
-            self.shanoir_file_type = output_file_type
-        else:
-            sys.exit("Unknown shanoir file type {}".format(output_file_type))
+            sys.exit("Unknown output file type {}".format(outfile_type))
 
     def set_shanoir_study_id(self, study_id):
         self.shanoir_study_id = study_id
@@ -395,7 +386,11 @@ class DownloadShanoirDatasetToBIDS:
         Configure the parser and the configuration of the shanoir_downloader
         """
         self.parser = shanoir_downloader.create_arg_parser()
-        shanoir_downloader.add_common_arguments(self.parser)
+        shanoir_downloader.add_username_argument(self.parser)
+        shanoir_downloader.add_domain_argument(self.parser)
+        self.parser.add_argument('-f', '--format', default='dicom', choices=['dicom'],
+                            help='The format to download.')
+        shanoir_downloader.add_output_folder_argument(self.parser)
         shanoir_downloader.add_configuration_arguments(self.parser)
         shanoir_downloader.add_search_arguments(self.parser)
         shanoir_downloader.add_ids_arguments(self.parser)
@@ -608,8 +603,6 @@ class DownloadShanoirDatasetToBIDS:
                         workflow_params["session"] = bids_seq_session
 
                     workflow(**workflow_params)
-                    # TODO add nipype logging into shanoir log file ?
-                    # TODO use provenance option ? currently not working properly
                     fp.close()
 
     def download(self):
@@ -653,7 +646,7 @@ def main():
     # )
     parser.add_argument(
         "--outformat",
-        default="nifti",
+        default="both",
         choices=["nifti", "dicom", "both"],
         help="The format to download.",
     )
@@ -693,7 +686,7 @@ def main():
     stb.set_json_config_file(
         json_file=args.config_file
     )  # path to json configuration file
-    stb.set_output_file_type(output_file_type=args.outformat)
+    stb.set_output_file_type(args.outformat)
     stb.set_download_directory(
         dl_dir=args.output_folder
     )  # output folder (if None a default directory is created)

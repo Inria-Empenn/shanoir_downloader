@@ -9,7 +9,7 @@
     {"datasetName": "Diff cusp66 b3000 AP 1.5mm", "bidsDir": "dwi", "bidsName": "acq-b3000_dir-AP_dwi"},
     {"datasetName": "Diff cusp66 b0 PA 1.5mm", "bidsDir": "dwi", "bidsName": "acq-b0_dir-PA_dwi"}
   ],
-  "dcm2niix":"~/softs/miniconda3/bin/dcm2niix",
+  "dcm2niix":"/home/alpron/softs/miniconda3/bin/dcm2niix",
   "dcm2niix_options": {"verbose": false,"compress": "y", "anon_bids": true},
   "find_and_replace_subject":
   [
