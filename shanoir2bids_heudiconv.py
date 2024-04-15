@@ -261,6 +261,7 @@ class DownloadShanoirDatasetToBIDS:
         self.n_seq = 0  # Number of sequences in the shanoir2bids_dict
         self.log_fn = None
         self.dcm2niix_path = None  # Path to the dcm2niix the user wants to use
+        self.actual_dcm2niix_path = shutil.which('dcm2niix')
         self.dcm2niix_opts = None  # Options to add to the dcm2niix call
         self.date_from = None
         self.date_to = None
@@ -374,6 +375,14 @@ class DownloadShanoirDatasetToBIDS:
 
     def toggle_longitudinal_version(self):
         self.longitudinal = True
+
+    def is_correct_dcm2niix(self):
+        current_version = Path(self.actual_dcm2niix_path)
+        config_version = Path(self.dcm2niix_path)
+        if current_version is not None and config_version is not None:
+            return config_version.samefile(current_version)
+        else:
+            return False
 
     def configure_parser(self):
         """
@@ -670,8 +679,10 @@ def main():
 
     if args.longitudinal:
         stb.toggle_longitudinal_version()
-
-    stb.download()
+    if not stb.is_correct_dcm2niix():
+        print(f"Current dcm2niix path {stb.actual_dcm2niix_path} is different from dcm2niix configured path {stb.dcm2niix_path}")
+    else:
+        stb.download()
 
 
 if __name__ == "__main__":
