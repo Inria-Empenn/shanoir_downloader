@@ -64,7 +64,18 @@
 
   ],
   "dcm2niix":"~/softs/miniconda3/bin/dcm2niix",
-  "dcm2niix_options": {"verbose": true,"compress": "y", "anon_bids": true}
+  "dcm2niix_options_comment": "dcm2niix configuration options in the nipype format (see https://nipype.readthedocs.io/en/latest/api/generated/nipype.interfaces.dcm2nii.html)",
+    "dcm2niix_options": {
+        "bids_format": true,
+        "anon_bids": true,
+        "compress": "y",
+        "compression": 5,
+        "crop": false,
+        "has_private": false,
+        "ignore_deriv": false,
+        "single_file": false,
+        "verbose": true
+    }
 }
 
 	
