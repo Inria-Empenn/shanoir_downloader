@@ -3,11 +3,11 @@
   "subjects": ["VS_Aneravimm_010", "VS_Aneravimm_011"],
   "data_to_bids":
   [
-    {"datasetName": "t1_mprage_sag_p2_iso", "bidsDir": "anat", "bidsName": "acq-mprage_T1w"},
-    {"datasetName": "t2_tse_HR_cor_MTL", "bidsDir": "anat", "bidsName": "acq-hr_T2w"},
-    {"datasetName": "Resting State_bold AP 1.6mm HIPP", "bidsDir": "func", "bidsName": "task-restingState_acq-hipp_dir-AP_bold"},
-    {"datasetName": "Diff cusp66 b3000 AP 1.5mm", "bidsDir": "dwi", "bidsName": "acq-b3000_dir-AP_dwi"},
-    {"datasetName": "Diff cusp66 b0 PA 1.5mm", "bidsDir": "dwi", "bidsName": "acq-b0_dir-AP_dwi"}
+    {"datasetName": "t1_mprage_sag_p2_iso", "bidsDir": "anat", "bidsName": "t1w-mprage"},
+    {"datasetName": "t2_tse_HR_cor_MTL", "bidsDir": "anat", "bidsName": "t2-hr"},
+    {"datasetName": "Resting State_bold AP 1.6mm HIPP", "bidsDir": "func", "bidsName": "ap-hipp"},
+    {"datasetName": "Diff cusp66 b3000 AP 1.5mm", "bidsDir": "dwi", "bidsName": "cusp66-ap-b3000"},
+    {"datasetName": "Diff cusp66 b0 PA 1.5mm", "bidsDir": "dwi", "bidsName": "cusp66-ap-b0"}
   ],
   "dcm2niix":"/home/alpron/softs/miniconda3/bin/dcm2niix",
   "dcm2niix_options": {"verbose": false,"compress": "y", "anon_bids": true},
