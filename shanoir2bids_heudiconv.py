@@ -373,6 +373,9 @@ class DownloadShanoirDatasetToBIDS:
         )
         self.log_fn = opj(self.dl_dir, basename)
 
+    def switch_to_automri_format(self):
+        self.to_automri_format = True
+
     def toggle_longitudinal_version(self):
         self.longitudinal = True
 
@@ -603,6 +606,8 @@ class DownloadShanoirDatasetToBIDS:
 
                     if self.longitudinal:
                         workflow_params["session"] = bids_seq_session
+                    if self.to_automri_format:
+                        workflow_params["bids_options"] = None
 
                     workflow(**workflow_params)
                     fp.close()
@@ -663,6 +668,8 @@ def main():
         help="Toggle longitudinal approach.",
     )
 
+    parser.add_argument('-a', '--automri', action='store_true', help='Switch to automri file tree.')
+
     args = parser.parse_args()
 
     # Start configuring the DownloadShanoirDatasetToBids class instance
@@ -679,6 +686,8 @@ def main():
 
     if args.longitudinal:
         stb.toggle_longitudinal_version()
+    if args.automri:
+        stb.switch_to_automri_format()
     if not stb.is_correct_dcm2niix():
         print(f"Current dcm2niix path {stb.actual_dcm2niix_path} is different from dcm2niix configured path {stb.dcm2niix_path}")
     else:
