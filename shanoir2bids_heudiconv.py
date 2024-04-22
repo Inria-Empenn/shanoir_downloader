@@ -4,8 +4,7 @@ shanoir2bids.py is a script that allows to download a Shanoir dataset and organi
                 The script is made to run for every project given some information provided by the user into a ".json"
                 configuration file. More details regarding the configuration file in the Readme.md"""
 # Script to download and BIDS-like organize data on Shanoir using "shanoir_downloader.py" developed by Arthur Masson
-# @Author: Malo Gaubert <malo.gaubert@irisa.fr>, Quentin Duché <quentin.duche@irisa.fr>
-# @Date: 24 Juin 2022
+
 
 import os
 from os.path import join as opj, splitext as ops, exists as ope, dirname as opd
