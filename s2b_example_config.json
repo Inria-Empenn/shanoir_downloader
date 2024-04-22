@@ -9,11 +9,21 @@
     {"datasetName": "Diff cusp66 b3000 AP 1.5mm", "bidsDir": "dwi", "bidsName": "acq-b3000_dir-AP_dwi"},
     {"datasetName": "Diff cusp66 b0 PA 1.5mm", "bidsDir": "dwi", "bidsName": "acq-b0_dir-PA_dwi"}
   ],
-  "dcm2niix":"/home/alpron/softs/miniconda3/bin/dcm2niix",
-  "dcm2niix_options": {"verbose": false,"compress": "y", "anon_bids": true},
-  "find_and_replace_subject":
-  [
-    {"find":"VS_Aneravimm_", "replace": "VS"},
-    {"find":"Vs_Aneravimm_", "replace": "VS"}
-  ]
+  "dcm2niix": "/home/alpron/softs/miniconda3/bin/dcm2niix",
+    "dcm2niix_options_comment": "dcm2niix configuration options in the nipype format (see https://nipype.readthedocs.io/en/latest/api/generated/nipype.interfaces.dcm2nii.html)",
+    "dcm2niix_options": {
+        "bids_format": true,
+        "anon_bids": true,
+        "compress": "y",
+        "compression": 5,
+        "crop": false,
+        "has_private": false,
+        "ignore_deriv": false,
+        "single_file": false,
+        "verbose": false
+    },
+    "find_and_replace_subject": [
+        {"find": "VS_Aneravimm_", "replace": "VS"},
+        {"find": "Vs_Aneravimm_", "replace": "VS"}
+    ]
 }
