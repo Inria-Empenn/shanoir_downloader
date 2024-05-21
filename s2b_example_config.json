@@ -5,7 +5,7 @@
         {
             "datasetName": "t1_mprage_sag_p2_iso",
             "bidsDir": "anat",
-            "bidsName": "t1w-mprage",
+            "bidsName": "t1w-mprage"
         },
         {"datasetName": "t2_tse_HR_cor_MTL", "bidsDir": "anat", "bidsName": "t2-hr"},
         {
