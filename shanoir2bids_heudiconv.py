@@ -4,8 +4,7 @@ shanoir2bids.py is a script that allows to download a Shanoir dataset and organi
                 The script is made to run for every project given some information provided by the user into a ".json"
                 configuration file. More details regarding the configuration file in the Readme.md"""
 # Script to download and BIDS-like organize data on Shanoir using "shanoir_downloader.py" developed by Arthur Masson
-# @Author: Malo Gaubert <malo.gaubert@irisa.fr>, Quentin Duché <quentin.duche@irisa.fr>
-# @Date: 24 Juin 2022
+
 
 import os
 from os.path import join as opj, splitext as ops, exists as ope, dirname as opd
@@ -173,7 +172,9 @@ def read_json_config_file(json_file):
 
 
 def generate_heuristic_file(
-    shanoir2bids_dict: object, path_heuristic_file: object, output_type='("dicom","nii.gz")'
+    shanoir2bids_dict: object,
+    path_heuristic_file: object,
+    output_type='("dicom","nii.gz")',
 ) -> None:
     """Generate heudiconv heuristic.py file from shanoir2bids mapping dict
     Parameters
@@ -181,9 +182,9 @@ def generate_heuristic_file(
     shanoir2bids_dict :
     path_heuristic_file : path of the python heuristic file (.py)
     """
-    if output_type == 'dicom':
+    if output_type == "dicom":
         outtype = '("dicom",)'
-    elif output_type == 'nifti':
+    elif output_type == "nifti":
         outtype = '("nii.gz",)'
     else:
         outtype = '("dicom","nii.gz")'
@@ -253,7 +254,9 @@ class DownloadShanoirDatasetToBIDS:
         self.shanoir_study_id = None  # Shanoir study ID
         self.shanoir_session_id = None  # Shanoir study ID
         self.shanoir_file_type = SHANOIR_FILE_TYPE_DICOM  # Download File Type (DICOM)
-        self.output_file_type = DEFAULT_SHANOIR_FILE_TYPE # Default Export File Type (NIFTI)
+        self.output_file_type = (
+            DEFAULT_SHANOIR_FILE_TYPE  # Default Export File Type (NIFTI)
+        )
         self.json_config_file = None
         self.list_fars = []  # List of substrings to edit in subjects names
         self.dl_dir = None  # download directory, where data will be stored
@@ -261,6 +264,7 @@ class DownloadShanoirDatasetToBIDS:
         self.n_seq = 0  # Number of sequences in the shanoir2bids_dict
         self.log_fn = None
         self.dcm2niix_path = None  # Path to the dcm2niix the user wants to use
+        self.actual_dcm2niix_path = shutil.which("dcm2niix")
         self.dcm2niix_opts = None  # Options to add to the dcm2niix call
         self.date_from = None
         self.date_to = None
@@ -299,7 +303,7 @@ class DownloadShanoirDatasetToBIDS:
         self.set_date_to(date_to=date_to)
 
     def set_output_file_type(self, outfile_type):
-        if outfile_type in [SHANOIR_FILE_TYPE_DICOM, SHANOIR_FILE_TYPE_NIFTI, 'both']:
+        if outfile_type in [SHANOIR_FILE_TYPE_DICOM, SHANOIR_FILE_TYPE_NIFTI, "both"]:
             self.output_file_type = outfile_type
         else:
             sys.exit("Unknown output file type {}".format(outfile_type))
@@ -372,14 +376,19 @@ class DownloadShanoirDatasetToBIDS:
         )
         self.log_fn = opj(self.dl_dir, basename)
 
-    def toggle_longitudinal_version(self):
-        self.longitudinal = True
-
     def switch_to_automri_format(self):
         self.to_automri_format = True
 
-    def add_series_number_suffix(self):
-        self.add_sns = True
+    def toggle_longitudinal_version(self):
+        self.longitudinal = True
+
+    def is_correct_dcm2niix(self):
+        current_version = Path(self.actual_dcm2niix_path)
+        config_version = Path(self.dcm2niix_path)
+        if current_version is not None and config_version is not None:
+            return config_version.samefile(current_version)
+        else:
+            return False
 
     def configure_parser(self):
         """
@@ -388,8 +397,13 @@ class DownloadShanoirDatasetToBIDS:
         self.parser = shanoir_downloader.create_arg_parser()
         shanoir_downloader.add_username_argument(self.parser)
         shanoir_downloader.add_domain_argument(self.parser)
-        self.parser.add_argument('-f', '--format', default='dicom', choices=['dicom'],
-                            help='The format to download.')
+        self.parser.add_argument(
+            "-f",
+            "--format",
+            default="dicom",
+            choices=["dicom"],
+            help="The format to download.",
+        )
         shanoir_downloader.add_output_folder_argument(self.parser)
         shanoir_downloader.add_configuration_arguments(self.parser)
         shanoir_downloader.add_search_arguments(self.parser)
@@ -413,7 +427,6 @@ class DownloadShanoirDatasetToBIDS:
         # temporary directory containing dowloaded DICOM.zip files
         with tempfile.TemporaryDirectory(dir=self.dl_dir) as tmp_dicom:
             with tempfile.TemporaryDirectory(dir=self.dl_dir) as tmp_archive:
-                print(tmp_archive)
                 # Loop on each sequence defined in the dictionary
                 for seq in range(self.n_seq):
                     # Isolate elements that are called many times
@@ -580,7 +593,9 @@ class DownloadShanoirDatasetToBIDS:
                 mode="r+", encoding="utf-8", dir=self.dl_dir, suffix=".py"
             ) as heuristic_file:
                 # Generate Heudiconv heuristic file from configuration.json mapping
-                generate_heuristic_file(bids_mapping, heuristic_file.name, output_type=self.output_file_type)
+                generate_heuristic_file(
+                    bids_mapping, heuristic_file.name, output_type=self.output_file_type
+                )
                 with tempfile.NamedTemporaryFile(
                     mode="r+", encoding="utf-8", dir=self.dl_dir, suffix=".json"
                 ) as dcm2niix_config_file:
@@ -601,8 +616,39 @@ class DownloadShanoirDatasetToBIDS:
 
                     if self.longitudinal:
                         workflow_params["session"] = bids_seq_session
+                    if self.to_automri_format:
+                        workflow_params["bids_options"] = None
 
                     workflow(**workflow_params)
+                    if self.to_automri_format:
+                        # horrible hack to adapt to automri ontology
+                        dicoms = glob(
+                            opj(self.dl_dir, str(self.shanoir_study_id), "**", "*.dcm"),
+                            recursive=True,
+                        )
+                        niftis = glob(
+                            opj(
+                                self.dl_dir,
+                                str(self.shanoir_study_id),
+                                "**",
+                                "*.nii.gz",
+                            ),
+                            recursive=True,
+                        )
+                        export_files = dicoms + niftis
+                        to_modify_files = [f for f in export_files if not ".git" in f]
+                        for f in to_modify_files:
+                            new_file = f.replace("/" + subject_id + "/", "/")
+                            new_file = new_file.replace("sub-", "su_")
+                            os.system("git  mv " + f + " " + new_file)
+                        from datalad.api import save
+
+                        save(
+                            path=opj(self.dl_dir, str(self.shanoir_study_id)),
+                            recursive=True,
+                            message="reformat into automri standart",
+                        )
+
                     fp.close()
 
     def download(self):
@@ -637,13 +683,7 @@ def main():
         default="shanoir.irisa.fr",
         help="The shanoir domain to query.",
     )
-    # parser.add_argument(
-    #     "-f",
-    #     "--format",
-    #     default="dicom",
-    #     choices=["dicom"],
-    #     help="The format to download.",
-    # )
+
     parser.add_argument(
         "--outformat",
         default="both",
@@ -667,16 +707,10 @@ def main():
         help="Toggle longitudinal approach.",
     )
 
-    # parser.add_argument(
-    #     "-a", "--automri", action="store_true", help="Switch to automri file tree."
-    # )
-    # parser.add_argument(
-    #     "-A",
-    #     "--add_sns",
-    #     action="store_true",
-    #     help="Add series number suffix (compatible with -a)",
-    # )
-    # Parse arguments
+    parser.add_argument(
+        "-a", "--automri", action="store_true", help="Switch to automri file tree."
+    )
+
     args = parser.parse_args()
 
     # Start configuring the DownloadShanoirDatasetToBids class instance
@@ -693,14 +727,14 @@ def main():
 
     if args.longitudinal:
         stb.toggle_longitudinal_version()
-    # if args.automri:
-    #     stb.switch_to_automri_format()
-    # if args.add_sns:
-    #     if not args.automri:
-    #         print("Warning : -A option is only compatible with -a option.")
-    #     stb.add_series_number_suffix()
-
-    stb.download()
+    if args.automri:
+        stb.switch_to_automri_format()
+    if not stb.is_correct_dcm2niix():
+        print(
+            f"Current dcm2niix path {stb.actual_dcm2niix_path} is different from dcm2niix configured path {stb.dcm2niix_path}"
+        )
+    else:
+        stb.download()
 
 
 if __name__ == "__main__":
