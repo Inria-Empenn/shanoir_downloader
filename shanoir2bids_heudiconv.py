@@ -172,7 +172,9 @@ def read_json_config_file(json_file):
 
 
 def generate_heuristic_file(
-    shanoir2bids_dict: object, path_heuristic_file: object, output_type='("dicom","nii.gz")'
+    shanoir2bids_dict: object,
+    path_heuristic_file: object,
+    output_type='("dicom","nii.gz")',
 ) -> None:
     """Generate heudiconv heuristic.py file from shanoir2bids mapping dict
     Parameters
@@ -180,9 +182,9 @@ def generate_heuristic_file(
     shanoir2bids_dict :
     path_heuristic_file : path of the python heuristic file (.py)
     """
-    if output_type == 'dicom':
+    if output_type == "dicom":
         outtype = '("dicom",)'
-    elif output_type == 'nifti':
+    elif output_type == "nifti":
         outtype = '("nii.gz",)'
     else:
         outtype = '("dicom","nii.gz")'
@@ -252,7 +254,9 @@ class DownloadShanoirDatasetToBIDS:
         self.shanoir_study_id = None  # Shanoir study ID
         self.shanoir_session_id = None  # Shanoir study ID
         self.shanoir_file_type = SHANOIR_FILE_TYPE_DICOM  # Download File Type (DICOM)
-        self.output_file_type = DEFAULT_SHANOIR_FILE_TYPE # Default Export File Type (NIFTI)
+        self.output_file_type = (
+            DEFAULT_SHANOIR_FILE_TYPE  # Default Export File Type (NIFTI)
+        )
         self.json_config_file = None
         self.list_fars = []  # List of substrings to edit in subjects names
         self.dl_dir = None  # download directory, where data will be stored
@@ -260,7 +264,7 @@ class DownloadShanoirDatasetToBIDS:
         self.n_seq = 0  # Number of sequences in the shanoir2bids_dict
         self.log_fn = None
         self.dcm2niix_path = None  # Path to the dcm2niix the user wants to use
-        self.actual_dcm2niix_path = shutil.which('dcm2niix')
+        self.actual_dcm2niix_path = shutil.which("dcm2niix")
         self.dcm2niix_opts = None  # Options to add to the dcm2niix call
         self.date_from = None
         self.date_to = None
@@ -299,7 +303,7 @@ class DownloadShanoirDatasetToBIDS:
         self.set_date_to(date_to=date_to)
 
     def set_output_file_type(self, outfile_type):
-        if outfile_type in [SHANOIR_FILE_TYPE_DICOM, SHANOIR_FILE_TYPE_NIFTI, 'both']:
+        if outfile_type in [SHANOIR_FILE_TYPE_DICOM, SHANOIR_FILE_TYPE_NIFTI, "both"]:
             self.output_file_type = outfile_type
         else:
             sys.exit("Unknown output file type {}".format(outfile_type))
@@ -393,8 +397,13 @@ class DownloadShanoirDatasetToBIDS:
         self.parser = shanoir_downloader.create_arg_parser()
         shanoir_downloader.add_username_argument(self.parser)
         shanoir_downloader.add_domain_argument(self.parser)
-        self.parser.add_argument('-f', '--format', default='dicom', choices=['dicom'],
-                            help='The format to download.')
+        self.parser.add_argument(
+            "-f",
+            "--format",
+            default="dicom",
+            choices=["dicom"],
+            help="The format to download.",
+        )
         shanoir_downloader.add_output_folder_argument(self.parser)
         shanoir_downloader.add_configuration_arguments(self.parser)
         shanoir_downloader.add_search_arguments(self.parser)
@@ -584,7 +593,9 @@ class DownloadShanoirDatasetToBIDS:
                 mode="r+", encoding="utf-8", dir=self.dl_dir, suffix=".py"
             ) as heuristic_file:
                 # Generate Heudiconv heuristic file from configuration.json mapping
-                generate_heuristic_file(bids_mapping, heuristic_file.name, output_type=self.output_file_type)
+                generate_heuristic_file(
+                    bids_mapping, heuristic_file.name, output_type=self.output_file_type
+                )
                 with tempfile.NamedTemporaryFile(
                     mode="r+", encoding="utf-8", dir=self.dl_dir, suffix=".json"
                 ) as dcm2niix_config_file:
@@ -611,16 +622,32 @@ class DownloadShanoirDatasetToBIDS:
                     workflow(**workflow_params)
                     if self.to_automri_format:
                         # horrible hack to adapt to automri ontology
-                        dicoms = glob(opj(self.dl_dir, str(self.shanoir_study_id), "**", "*.dcm"), recursive=True)
-                        niftis = glob(opj(self.dl_dir, str(self.shanoir_study_id), "**", "*.nii.gz"), recursive=True)
+                        dicoms = glob(
+                            opj(self.dl_dir, str(self.shanoir_study_id), "**", "*.dcm"),
+                            recursive=True,
+                        )
+                        niftis = glob(
+                            opj(
+                                self.dl_dir,
+                                str(self.shanoir_study_id),
+                                "**",
+                                "*.nii.gz",
+                            ),
+                            recursive=True,
+                        )
                         export_files = dicoms + niftis
-                        to_modify_files = [f for f in export_files if not '.git' in f]
+                        to_modify_files = [f for f in export_files if not ".git" in f]
                         for f in to_modify_files:
-                            new_file = f.replace('/' + subject_id + '/', '/' )
-                            new_file = new_file.replace('sub-','su_')
-                            os.system('git  mv ' + f + ' ' + new_file)
+                            new_file = f.replace("/" + subject_id + "/", "/")
+                            new_file = new_file.replace("sub-", "su_")
+                            os.system("git  mv " + f + " " + new_file)
                         from datalad.api import save
-                        save(path=opj(self.dl_dir, str(self.shanoir_study_id)), recursive=True, message='reformat into automri standart')
+
+                        save(
+                            path=opj(self.dl_dir, str(self.shanoir_study_id)),
+                            recursive=True,
+                            message="reformat into automri standart",
+                        )
 
                     fp.close()
 
@@ -680,7 +707,9 @@ def main():
         help="Toggle longitudinal approach.",
     )
 
-    parser.add_argument('-a', '--automri', action='store_true', help='Switch to automri file tree.')
+    parser.add_argument(
+        "-a", "--automri", action="store_true", help="Switch to automri file tree."
+    )
 
     args = parser.parse_args()
 
@@ -701,7 +730,9 @@ def main():
     if args.automri:
         stb.switch_to_automri_format()
     if not stb.is_correct_dcm2niix():
-        print(f"Current dcm2niix path {stb.actual_dcm2niix_path} is different from dcm2niix configured path {stb.dcm2niix_path}")
+        print(
+            f"Current dcm2niix path {stb.actual_dcm2niix_path} is different from dcm2niix configured path {stb.dcm2niix_path}"
+        )
     else:
         stb.download()
 
