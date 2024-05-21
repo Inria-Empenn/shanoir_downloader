@@ -609,6 +609,19 @@ class DownloadShanoirDatasetToBIDS:
                         workflow_params["bids_options"] = None
 
                     workflow(**workflow_params)
+                    if self.to_automri_format:
+                        # horrible hack to adapt to automri ontology
+                        dicoms = glob(opj(self.dl_dir, str(self.shanoir_study_id), "**", "*.dcm"), recursive=True)
+                        niftis = glob(opj(self.dl_dir, str(self.shanoir_study_id), "**", "*.nii.gz"), recursive=True)
+                        export_files = dicoms + niftis
+                        to_modify_files = [f for f in export_files if not '.git' in f]
+                        for f in to_modify_files:
+                            new_file = f.replace('/' + subject_id + '/', '/' )
+                            new_file = new_file.replace('sub-','su_')
+                            os.system('git  mv ' + f + ' ' + new_file)
+                        from datalad.api import save
+                        save(path=opj(self.dl_dir, str(self.shanoir_study_id)), recursive=True, message='reformat into automri standart')
+
                     fp.close()
 
     def download(self):
