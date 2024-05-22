@@ -22,7 +22,7 @@
             "datasetName": "Diff cusp66 b0 PA 1.5mm",
             "bidsDir": "dwi",
             "bidsName": "cusp66-ap-b0"
-        },
+        }
     ],
     "dcm2niix": "/home/alpron/softs/miniconda3/bin/dcm2niix",
     "dcm2niix_options_comment": "dcm2niix configuration options in the nipype format (see https://nipype.readthedocs.io/en/latest/api/generated/nipype.interfaces.dcm2nii.html)",
