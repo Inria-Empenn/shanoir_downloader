@@ -170,10 +170,88 @@ def read_json_config_file(json_file):
         date_to,
     )
 
+def generate_automri_heuristic_file(
+        shanoir2bids_dict,
+        path_heuristic_file,
+        subject,
+        output_type='("dicom","nii.gz")',
+        session=None):
+    if output_type == "dicom":
+        outtype = '("dicom",)'
+    elif output_type == "nifti":
+        outtype = '("nii.gz",)'
+    else:
+        outtype = '("dicom","nii.gz")'
 
-def generate_heuristic_file(
-    shanoir2bids_dict: object,
-    path_heuristic_file: object,
+    heuristic = f"""
+    def create_key(
+    subdir: Optional[str],
+    file_suffix: str,
+    outtype: tuple[str, ...] = ("nii.gz", "dicom"),
+    annotation_classes: None = None,
+    prefix: str = "",
+) -> tuple[str, tuple[str, ...], None]:
+    if not subdir:
+        raise ValueError("subdir must be a valid format string")
+    template = os.path.join(
+        prefix,
+        "{subject}",
+        subdir,
+        "su_{subject}_%s" % file_suffix,
+    )
+    return template, outtype, annotation_classes
+
+    def create_bids_key(dataset):
+
+        template = create_key(subdir=dataset['bidsDir'],file_suffix=r"run-{{item:02d}}_" + dataset['bidsName'],outtype={outtype})
+        return template
+
+    def get_dataset_to_key_mapping(shanoir2bids):
+        dataset_to_key = dict()
+        for dataset in shanoir2bids:
+            template = create_bids_key(dataset)
+            dataset_to_key[dataset['datasetName']] = template
+        return dataset_to_key
+
+    def simplify_runs(info):
+        info_final = dict()
+        for key in info.keys():
+            if len(info[key])==1:
+                new_template = key[0].replace('run-{{item:02d}}_','')
+                new_key = (new_template, key[1], key[2])
+                info_final[new_key] = info[key]
+            else:
+                info_final[key] = info[key]
+        return info_final
+
+    def infotodict(seqinfo):
+
+        info = dict()
+        shanoir2bids = {shanoir2bids_dict}
+
+        dataset_to_key = get_dataset_to_key_mapping(shanoir2bids)
+        for seq in seqinfo:
+            if seq.series_description in dataset_to_key.keys():
+                key = dataset_to_key[seq.series_description]
+                if key in info.keys():
+                    info[key].append(seq.series_id)
+                else:
+                    info[key] = [seq.series_id]
+        # remove run- key if not needed (one run only)
+        info_final = simplify_runs(info)      
+        return info_final
+    """
+
+    with open(path_heuristic_file, "w", encoding="utf-8") as file:
+        file.write(heuristic)
+    pass
+
+
+
+def generate_bids_heuristic_file(
+    shanoir2bids_dict,
+
+    path_heuristic_file,
     output_type='("dicom","nii.gz")',
 ) -> None:
     """Generate heudiconv heuristic.py file from shanoir2bids mapping dict
@@ -517,9 +595,11 @@ class DownloadShanoirDatasetToBIDS:
                                 # If the user has defined a list of edits to subject names... then do the find and replace
                                 for far in self.list_fars:
                                     su_id = su_id.replace(far[K_FIND], far[K_REPLACE])
-
                                 # ID of the subject (sub-*)
                                 subject_id = su_id
+
+                                if self.to_automri_format:
+                                    subject_id = 'su_' + su_id
                                 # correct BIDS mapping of the searched dataset
                                 bids_seq_mapping = {
                                     "datasetName": item["datasetName"],
@@ -593,7 +673,9 @@ class DownloadShanoirDatasetToBIDS:
                 mode="r+", encoding="utf-8", dir=self.dl_dir, suffix=".py"
             ) as heuristic_file:
                 # Generate Heudiconv heuristic file from configuration.json mapping
-                generate_heuristic_file(
+                if self.to_automri_format:
+                    generate_automri_heuristic_file(bids_mapping,heuristic_file.name, subject_id,self.output_file_type, bids_seq_session)
+                generate_bids_heuristic_file(
                     bids_mapping, heuristic_file.name, output_type=self.output_file_type
                 )
                 with tempfile.NamedTemporaryFile(
@@ -620,35 +702,6 @@ class DownloadShanoirDatasetToBIDS:
                         workflow_params["bids_options"] = None
 
                     workflow(**workflow_params)
-                    if self.to_automri_format:
-                        # horrible hack to adapt to automri ontology
-                        dicoms = glob(
-                            opj(self.dl_dir, str(self.shanoir_study_id), "**", "*.dcm"),
-                            recursive=True,
-                        )
-                        niftis = glob(
-                            opj(
-                                self.dl_dir,
-                                str(self.shanoir_study_id),
-                                "**",
-                                "*.nii.gz",
-                            ),
-                            recursive=True,
-                        )
-                        export_files = dicoms + niftis
-                        to_modify_files = [f for f in export_files if not ".git" in f]
-                        for f in to_modify_files:
-                            new_file = f.replace("/" + subject_id + "/", "/")
-                            new_file = new_file.replace("sub-", "su_")
-                            os.system("git  mv " + f + " " + new_file)
-                        from datalad.api import save
-
-                        save(
-                            path=opj(self.dl_dir, str(self.shanoir_study_id)),
-                            recursive=True,
-                            message="reformat into automri standart",
-                        )
-
                     fp.close()
 
     def download(self):
