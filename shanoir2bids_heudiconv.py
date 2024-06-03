@@ -489,7 +489,7 @@ class DownloadShanoirDatasetToBIDS:
                     "-d",
                     self.shanoir_domaine,
                     "-of",
-                    tmp_archive,
+                    str(tmp_archive),
                     "-em",
                     "-st",
                     search_txt,
@@ -621,8 +621,8 @@ Search Text : "{}" \n""".format(
                 workflow(**workflow_params)
                 fp.close()
         if not self.debug_mode:
-            shutil.rmtree(tmp_archive)
-            shutil.rmtree(tmp_dicom)
+            shutil.rmtree(tmp_archive.parent)
+            shutil.rmtree(tmp_dicom.parent)
 
 
     def download(self):
