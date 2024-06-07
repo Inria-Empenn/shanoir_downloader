@@ -73,10 +73,10 @@ def rename_path(old_path, new_path):
 	old_path.rename(new_path)
 	return new_path
 
-def anonymize_fields(anonymization_fields, dicom_files, dicom_output_path, sequence_id):
+def anonymize_fields(anonymization_fields, dicom_files, dicom_output_path, sequence_id, patient_id):
 	for dicom_file in dicom_files:
 		ds = pydicom.dcmread(str(dicom_file))
-		ds.PatientID = sequence_id				# [(0x0010, 0x0010)]
+		ds.PatientID = patient_id if patient_id is not None else sequence_id # [(0x0010, 0x0010)]
 		ds.PatientName = sequence_id 			# [(0x0010, 0x0020)]
 		for index, row in anonymization_fields.iterrows():
 			codes = row['Code'][1:-1].split(',')
@@ -220,8 +220,9 @@ def download_datasets(args, config=None, all_datasets=None):
 			sequence_id = index
 			shanoir_name = row['shanoir_name'] if 'shanoir_name' in row else None
 			series_description = row['series_description'] if 'series_description' in row else None
+			patient_id = row['patient_id'] if 'patient_id' in row else None
 
-			logging.info(f'Downloading dataset {sequence_id} ({n}/{len(datasets_to_download)}), shanoir name: {shanoir_name}, series description: {series_description}')
+			logging.info(f'Downloading dataset {sequence_id} ({n}/{len(datasets_to_download)}), shanoir name: {shanoir_name}, series description: {series_description}, patient id: {patient_id}')
 			n += 1
 
 			# Create the destination folder for this dataset
@@ -301,7 +302,7 @@ def download_datasets(args, config=None, all_datasets=None):
 				except Exception as e:
 					missing_datasets = add_missing_dataset(missing_datasets, sequence_id, 'content_read', f'Error while reading DICOM: {e}', raw_folder, args.unrecoverable_errors, missing_datasets_path)
 					continue
-			
+
 			dicom_zip_to_encrypt = dicom_zip
 			anonymized_dicom_folder = None
 			final_output = dicom_zip
@@ -320,7 +321,7 @@ def download_datasets(args, config=None, all_datasets=None):
 					anonymized_dicom_folder.mkdir(exist_ok=True)
 					# import dicomanonymizer
 					# dicomanonymizer.anonymize(str(dicom_folder), str(anonymized_dicom_folder), extraAnonymizationRules, True)
-					anonymize_fields(anonymization_fields, dicom_files, anonymized_dicom_folder, sequence_id)
+					anonymize_fields(anonymization_fields, dicom_files, anonymized_dicom_folder, sequence_id, patient_id)
 				except Exception as e:
 					missing_datasets = add_missing_dataset(missing_datasets, sequence_id, 'anonymization_error', str(e), raw_folder, args.unrecoverable_errors, missing_datasets_path)
 					continue
