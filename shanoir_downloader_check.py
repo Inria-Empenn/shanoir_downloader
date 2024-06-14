@@ -13,6 +13,8 @@ from dotenv import load_dotenv
 import pydicom
 import pandas
 import numpy as np
+from pydicom import Dataset
+
 import shanoir_downloader
 from py7zr import pack_7zarchive, unpack_7zarchive
 
@@ -74,10 +76,13 @@ def rename_path(old_path, new_path):
 	return new_path
 
 def anonymize_fields(anonymization_fields, dicom_files, dicom_output_path, sequence_id, patient_id):
+	pat_index = 1
 	for dicom_file in dicom_files:
 		ds = pydicom.dcmread(str(dicom_file))
 		ds.PatientID = patient_id if patient_id is not None else sequence_id # [(0x0010, 0x0010)]
-		ds.PatientName = sequence_id 			# [(0x0010, 0x0020)]
+		ds.PatientName = patient_id if patient_id is not None else sequence_id 			# [(0x0010, 0x0020)]
+		#Other Patient IDs
+		ds[int('0x'+ '0010', base=16),int('0x'+ '1000', base=16)] = sequence_id
 		for index, row in anonymization_fields.iterrows():
 			codes = row['Code'][1:-1].split(',')
 			codes = [int('0x'+code, base=16) for code in codes]
@@ -88,7 +93,8 @@ def anonymize_fields(anonymization_fields, dicom_files, dicom_output_path, seque
 				data_element.value = ''
 			except KeyError as e:
 				pass # If the key is not found: juste ignore anonymization
-		ds.save_as(dicom_output_path / dicom_file.name)
+		ds.save_as(dicom_output_path / str(patient_id) + str(pat_index) + '.dcm')
+		pat_index = pat_index + 1
 	return
 
 def replace_with_sequence_id(sequence_id, dataset, tag):
