@@ -75,14 +75,14 @@ def rename_path(old_path, new_path):
 	old_path.rename(new_path)
 	return new_path
 
-def anonymize_fields(anonymization_fields, dicom_files, dicom_output_path, sequence_id, patient_id):
-	pat_index = 1
+def anonymize_fields(anonymization_fields, dicom_files, dicom_output_path, sequence_id, patient_id, shanoir_name):
 	for dicom_file in dicom_files:
 		ds = pydicom.dcmread(str(dicom_file))
 		ds.PatientID = patient_id if patient_id is not None else sequence_id # [(0x0010, 0x0010)]
-		ds.PatientName = patient_id if patient_id is not None else sequence_id 			# [(0x0010, 0x0020)]
-		#Other Patient IDs
-		ds[int('0x'+ '0010', base=16),int('0x'+ '1000', base=16)] = sequence_id
+		ds.PatientName = patient_id if patient_id is not None else sequence_id # [(0x0010, 0x0020)]
+
+		# Update Other Patient IDs
+		ds.OtherPatientIDs = sequence_id
 		for index, row in anonymization_fields.iterrows():
 			codes = row['Code'][1:-1].split(',')
 			codes = [int('0x'+code, base=16) for code in codes]
@@ -93,8 +93,8 @@ def anonymize_fields(anonymization_fields, dicom_files, dicom_output_path, seque
 				data_element.value = ''
 			except KeyError as e:
 				pass # If the key is not found: juste ignore anonymization
-		ds.save_as(dicom_output_path / str(patient_id) + str(pat_index) + '.dcm')
-		pat_index = pat_index + 1
+		file_name = dicom_file.name.replace(shanoir_name, patient_id)
+		ds.save_as(dicom_output_path / file_name)
 	return
 
 def replace_with_sequence_id(sequence_id, dataset, tag):
@@ -327,7 +327,7 @@ def download_datasets(args, config=None, all_datasets=None):
 					anonymized_dicom_folder.mkdir(exist_ok=True)
 					# import dicomanonymizer
 					# dicomanonymizer.anonymize(str(dicom_folder), str(anonymized_dicom_folder), extraAnonymizationRules, True)
-					anonymize_fields(anonymization_fields, dicom_files, anonymized_dicom_folder, sequence_id, patient_id)
+					anonymize_fields(anonymization_fields, dicom_files, anonymized_dicom_folder, sequence_id, patient_id, shanoir_name)
 				except Exception as e:
 					missing_datasets = add_missing_dataset(missing_datasets, sequence_id, 'anonymization_error', str(e), raw_folder, args.unrecoverable_errors, missing_datasets_path)
 					continue
