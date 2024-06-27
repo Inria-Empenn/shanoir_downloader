@@ -613,6 +613,7 @@ Search Text : "{}" \n""".format(
                     "datalad": True,
                     "minmeta": True,
                     "grouping": "all",  # other options are too restrictive (tested on EMISEP)
+                    "overwrite":True
                 }
 
                 if self.longitudinal:
@@ -621,9 +622,11 @@ Search Text : "{}" \n""".format(
                 workflow(**workflow_params)
                 fp.close()
         if not self.debug_mode:
-            shutil.rmtree(tmp_archive.parent)
-            shutil.rmtree(tmp_dicom.parent)
-
+            shutil.rmtree(tmp_archive, ignore_errors=True)
+            shutil.rmtree(tmp_dicom, ignore_errors=True)
+            # beware of side effects
+            shutil.rmtree(tmp_archive.parent, ignore_errors=True)
+            shutil.rmtree(tmp_dicom.parent, ignore_errors=True)
 
     def download(self):
         """
