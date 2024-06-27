@@ -24,6 +24,9 @@ import shanoir_downloader
 from dotenv import load_dotenv
 from heudiconv.main import workflow
 
+# import loggger used in heudiconv workflow
+import bids_validator
+
 
 # Load environment variables
 load_dotenv(dotenv_path=opj(opd(__file__), ".env"))
@@ -242,6 +245,7 @@ def infotodict(seqinfo):
     pass
 
 
+
 class DownloadShanoirDatasetToBIDS:
     """
     class that handles the downloading of shanoir data set and the reformatting as a BIDS data structure
@@ -278,7 +282,7 @@ class DownloadShanoirDatasetToBIDS:
             False  # Special filenames for automri (No longer used ! --> BIDS format)
         )
         self.add_sns = False  # Add series number suffix to filename
-        self.debug_mode = False # No debug mode by default
+        self.debug_mode = False  # No debug mode by default
 
     def set_json_config_file(self, json_file):
         """
@@ -424,6 +428,57 @@ class DownloadShanoirDatasetToBIDS:
         shanoir_downloader.add_search_arguments(self.parser)
         shanoir_downloader.add_ids_arguments(self.parser)
 
+    def is_mapping_bids(self):
+        """Check BIDS compliance of filenames/path used in the configuration file"""
+        validator = bids_validator.BIDSValidator()
+
+        subjects = self.shanoir_subjects
+        list_find_and_replace = self.list_fars
+        if list_find_and_replace:
+            # normalise subjects name
+            normalised_subjects = []
+            for subject in subjects:
+                for i, far in enumerate(list_find_and_replace):
+                    if i == 0:
+                        normalised_subject = subject
+                    normalised_subject = normalised_subject.replace(far["find"], far["replace"])
+                normalised_subjects.append(normalised_subject)
+        else:
+            normalised_subjects = subjects
+
+        sessions = self.shanoir_session_id
+        extension = '.nii.gz'
+
+        if sessions == '*':
+            paths = (
+                    "/" + "sub-" + subject + '/' +
+                    map["bidsDir"] + '/' +
+                    "sub-" + subject + '_' +
+                    map["bidsName"] + extension
+
+                for subject in normalised_subjects
+                for map in self.shanoir2bids_dict
+            )
+        else:
+            paths = (
+                "/" + "sub-" + subject + '/' +
+                    "ses-" + session + '/' +
+                    map["bidsDir"] + '/' +
+                     "sub-" + subject + '_' + "ses-" + session + '_' +
+                    map["bidsName"] + extension
+
+                for session in sessions
+                for subject in normalised_subjects
+                for map in self.shanoir2bids_dict
+            )
+
+        bids_errors = [p for p in paths if not validator.is_bids(p)]
+
+        if not bids_errors:
+            return True, bids_errors
+        else:
+            return False, bids_errors
+
     def download_subject(self, subject_to_search):
         """
         For a single subject
@@ -520,9 +575,7 @@ class DownloadShanoirDatasetToBIDS:
             # Print the number of items found and a list of these items
             if response.status_code == 200:
                 # Invoke shanoir_downloader to download all the data
-                shanoir_downloader.download_search_results(
-                    config, args, response
-                )
+                shanoir_downloader.download_search_results(config, args, response)
 
                 if len(response.json()["content"]) == 0:
                     warn_msg = """WARNING ! The Shanoir request returned 0 result. Make sure the following search text returns 
@@ -723,7 +776,12 @@ def main():
             f"Current dcm2niix path {stb.actual_dcm2niix_path} is different from dcm2niix configured path {stb.dcm2niix_path}"
         )
     else:
-        stb.download()
+        if stb.is_mapping_bids()[0]:
+            stb.download()
+        else:
+            print(
+                f"Provided BIDS keys {stb.is_mapping_bids()[1]} are not BIDS compliant check syntax in provided configuration file {args.config_file}"
+            )
 
 
 if __name__ == "__main__":
