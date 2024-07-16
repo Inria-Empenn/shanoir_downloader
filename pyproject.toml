@@ -35,7 +35,7 @@ Changelog = "https://github.com/Inria-Empenn/shanoir_downloader/blob/master/CHAN
 py-modules = []
 
 [tool.setuptools_scm]
-version_file = "pkg/_version.py"
+
 
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements.txt"]}
