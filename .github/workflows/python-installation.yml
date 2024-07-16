@@ -6,7 +6,7 @@ jobs:
   build:
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest]
         python-version: ["3.8", "3.9", "3.10", "3.11"]
         #TODO: use github action to read python version from pyproject.toml
     runs-on:  ${{ matrix.os }}
