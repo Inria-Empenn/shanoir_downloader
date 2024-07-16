@@ -10,7 +10,7 @@ The scripts `convert_dicoms_to_niftis.py` and `create_previews.py` enable to con
 
 It is advised to install the project in [a virtual environment](https://docs.python.org/3/tutorial/venv.html). 
 
-[Install python with pip](https://www.python.org/downloads/) ; then use `pip install -r requirements.txt` to install python dependencies.
+[Install python with pip](https://www.python.org/downloads/) ; then use `pip install .` to install python dependencies.
 
 Optionally, rename the `.env.example` to `.env` and set the variables (`shanoir_password`, `gpg_recipient`) to your needs.
 
