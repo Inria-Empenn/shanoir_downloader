@@ -8,7 +8,7 @@ version = "0.0.1"
 
 dynamic = ["dependencies", "optional-dependencies"]
 
-requires-python = ">=3.8, <3.12"
+requires-python = ">=3.8, <3.11"
 
 authors = [
   {name = "Arthur Masson",email = "arthur.masson@inria.fr"},
@@ -35,7 +35,6 @@ Changelog = "https://github.com/Inria-Empenn/shanoir_downloader/blob/master/CHAN
 py-modules = []
 
 [tool.setuptools_scm]
-
 
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements.txt"]}
