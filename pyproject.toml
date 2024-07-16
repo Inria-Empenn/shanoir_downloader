@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools>=64", "setuptools_scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -34,8 +34,12 @@ Changelog = "https://github.com/Inria-Empenn/shanoir_downloader/blob/master/CHAN
 [tool.setuptools]
 py-modules = []
 
+[tool.setuptools_scm]
+version_file = "pkg/_version.py"
+
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements.txt"]}
+
 
 #optional-dependencies = {dev = { file = ["requirements-dev.txt"] }}
 #[project.scripts]
