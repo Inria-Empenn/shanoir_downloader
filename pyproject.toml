@@ -5,14 +5,10 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "shanoir-downloader"
 version = "0.0.1"
-dynamic = ["version"]
+
 dynamic = ["dependencies", "optional-dependencies"]
 
-[tool.setuptools.dynamic]
-dependencies = {file = ["requirements.txt"]}
-optional-dependencies = {dev = { file = ["requirements-dev.txt"] }}
-
-requires-python = ">=3.8 <3.12"
+requires-python = ">=3.8, <3.12"
 
 authors = [
   {name = "Arthur Masson"},
@@ -35,9 +31,16 @@ Repository = "https://github.com/Inria-Empenn/shanoir_downloader.git"
 "Bug Tracker" = "https://github.com/Inria-Empenn/shanoir_downloader/issues"
 Changelog = "https://github.com/Inria-Empenn/shanoir_downloader/blob/master/CHANGELOG.md"
 
-[project.scripts]
-spam-cli = "shanoir-downloader:main_cli"
+[tool.setuptools]
+py-modules = []
 
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
 
-[project.entry-points."spam.magical"]
-tomatoes = "spam:main_tomatoes"
+#optional-dependencies = {dev = { file = ["requirements-dev.txt"] }}
+#[project.scripts]
+#spam-cli = "shanoir-downloader:main_cli"
+
+#
+#[project.entry-points."spam.magical"]
+#tomatoes = "spam:main_tomatoes"
