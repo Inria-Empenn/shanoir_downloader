@@ -13,6 +13,8 @@ from dotenv import load_dotenv
 import pydicom
 import pandas
 import numpy as np
+from pydicom import Dataset
+
 import shanoir_downloader
 from py7zr import pack_7zarchive, unpack_7zarchive
 
@@ -73,11 +75,14 @@ def rename_path(old_path, new_path):
 	old_path.rename(new_path)
 	return new_path
 
-def anonymize_fields(anonymization_fields, dicom_files, dicom_output_path, sequence_id, patient_id):
+def anonymize_fields(anonymization_fields, dicom_files, dicom_output_path, sequence_id, patient_id, shanoir_name):
 	for dicom_file in dicom_files:
 		ds = pydicom.dcmread(str(dicom_file))
 		ds.PatientID = patient_id if patient_id is not None else sequence_id # [(0x0010, 0x0010)]
-		ds.PatientName = sequence_id 			# [(0x0010, 0x0020)]
+		ds.PatientName = patient_id if patient_id is not None else sequence_id # [(0x0010, 0x0020)]
+
+		# Update Other Patient IDs
+		ds.OtherPatientIDs = sequence_id
 		for index, row in anonymization_fields.iterrows():
 			codes = row['Code'][1:-1].split(',')
 			codes = [int('0x'+code, base=16) for code in codes]
@@ -88,7 +93,8 @@ def anonymize_fields(anonymization_fields, dicom_files, dicom_output_path, seque
 				data_element.value = ''
 			except KeyError as e:
 				pass # If the key is not found: juste ignore anonymization
-		ds.save_as(dicom_output_path / dicom_file.name)
+		file_name = dicom_file.name.replace(shanoir_name, patient_id)
+		ds.save_as(dicom_output_path / file_name)
 	return
 
 def replace_with_sequence_id(sequence_id, dataset, tag):
@@ -148,14 +154,14 @@ def download_datasets(args, config=None, all_datasets=None):
 				all_datasets = pandas.read_csv(args.dataset_ids, sep=',' if args.dataset_ids.endswith('.csv') else '\t', dtype=datasets_dtype)
 			else:
 				all_datasets = pandas.read_excel(args.dataset_ids, dtype=datasets_dtype)
-	
+
 	gpg_recipient = args.gpg_recipient or (os.environ['gpg_recipient'] if 'gpg_recipient' in os.environ else None)
-	
+
 	if gpg_recipient is None and not args.skip_encryption:
 		logging.info('Warning: skipping encryption since gpg_recipient is None (even though skip_encryption is False).')
 
 	output_folder = Path(config['output_folder'])
-	
+
 	all_datasets.set_index('sequence_id', inplace=True)
 	# Drop duplicates
 	all_datasets = all_datasets[~all_datasets.index.duplicated(keep='first')]
@@ -168,7 +174,7 @@ def download_datasets(args, config=None, all_datasets=None):
 					all_datasets = all_datasets[all_datasets[column_name] != value]
 			except Exception as e:
 				sys.exit(f'Error while parsing skip_columns argument: {skip_column}\n {e}')
-	
+
 	# Create missing_datasets and downloaded_datasets tsv files
 	missing_datasets_path = output_folder / f'missing_datasets.tsv' if args.missing_datasets is None else Path(args.missing_datasets)
 	downloaded_datasets_path = output_folder / f'downloaded_datasets.tsv' if args.downloaded_datasets is None else Path(args.downloaded_datasets)
@@ -196,7 +202,7 @@ def download_datasets(args, config=None, all_datasets=None):
 	# Download and process datasets until there are no more datasets to process 
 	# (all the missing datasets are unrecoverable or tried more than args.max_tries times)
 	while len(datasets_to_download) > 0:
-		
+
 		# datasets_to_download is all_datasets except those already downloaded and those missing which are unrecoverable
 		datasets_to_download = all_datasets[~all_datasets.index.isin(downloaded_datasets.index)]
 		datasets_max_tries = missing_datasets[missing_datasets['n_tries'] >= args.max_tries].index
@@ -216,7 +222,7 @@ def download_datasets(args, config=None, all_datasets=None):
 			if now.hour >= SHANOIR_SHUTDOWN_HOUR and now.hour < SHANOIR_AVAILABLE_HOUR:
 				future = datetime(now.year, now.month, now.day, SHANOIR_AVAILABLE_HOUR, 0)
 				time.sleep((future-now).total_seconds())
-			
+
 			sequence_id = index
 			shanoir_name = row['shanoir_name'] if 'shanoir_name' in row else None
 			series_description = row['series_description'] if 'series_description' in row else None
@@ -243,7 +249,7 @@ def download_datasets(args, config=None, all_datasets=None):
 			except Exception as e:
 				missing_datasets = add_missing_dataset(missing_datasets, sequence_id, 'unknown_http_error', str(e), raw_folder, args.unrecoverable_errors, missing_datasets_path)
 				continue
-			
+
 			# List the downloaded zip files
 			zip_files = list(destination_folder.glob('*.zip'))
 
@@ -256,7 +262,7 @@ def download_datasets(args, config=None, all_datasets=None):
 
 			# Extract the zip file
 			dicom_zip = zip_files[0]
-			
+
 			logging.info(f'    Extracting {dicom_zip}...')
 			dicom_folder = destination_folder.parent / f'{sequence_id}' # dicom_zip.stem
 			dicom_folder.mkdir(exist_ok=True)
@@ -264,14 +270,14 @@ def download_datasets(args, config=None, all_datasets=None):
 
 			with zipfile.ZipFile(str(dicom_zip), 'r') as zip_ref:
 				zip_ref.extractall(str(dicom_folder))
-				
+
 			dicom_files = list(dicom_folder.glob('*.dcm'))
 
 			# Error if there are no dicom file found
 			if len(dicom_files) == 0:
 				missing_datasets = add_missing_dataset(missing_datasets, sequence_id, 'nodicom', f'No DICOM file was found in the dicom directory {dicom_folder}.', raw_folder, args.unrecoverable_errors, missing_datasets_path)
 				continue
-			
+
 			patient_name_in_dicom = None
 			series_description_in_dicom = None
 			verified = None
@@ -290,15 +296,15 @@ def download_datasets(args, config=None, all_datasets=None):
 						message = f'Shanoir name {shanoir_name} differs in dicom: {patient_name_in_dicom}'
 						logging.error(f'For dataset {sequence_id}: {message}')
 						verified = verified_datasets is not None and len(verified_datasets[(verified_datasets.shanoir_name == shanoir_name) & (verified_datasets.patient_name_in_dicom == patient_name_in_dicom)]) > 0
-						# missing_datasets = add_missing_dataset(missing_datasets, sequence_id, 'content_patient_name', f'Shanoir name {patient_name} differs in dicom: {ds.PatientName}', raw_folder, args.unrecoverable_errors, missing_datasets_path)
-						# continue
+					# missing_datasets = add_missing_dataset(missing_datasets, sequence_id, 'content_patient_name', f'Shanoir name {patient_name} differs in dicom: {ds.PatientName}', raw_folder, args.unrecoverable_errors, missing_datasets_path)
+					# continue
 
 					if series_description_in_dicom.replace(' ', '') != series_description.replace(' ', ''): 	# or if ds[0x0008, 0x103E].value != series_description:
 						message = f'Series description {series_description} differs in dicom: {series_description_in_dicom}'
 						logging.error(f'For dataset {sequence_id}: {message}')
 						verified = verified_datasets is not None and verified is not False and len(verified_datasets[(verified_datasets.index == sequence_id) & (verified_datasets.series_description == series_description) & (verified_datasets.series_description_in_dicom == series_description_in_dicom)]) > 0
-						# missing_datasets = add_missing_dataset(missing_datasets, sequence_id, 'content_series_description', f'Series description {series_description} differs in dicom: {ds.SeriesDescription}', raw_folder, args.unrecoverable_errors, missing_datasets_path)
-						# continue
+					# missing_datasets = add_missing_dataset(missing_datasets, sequence_id, 'content_series_description', f'Series description {series_description} differs in dicom: {ds.SeriesDescription}', raw_folder, args.unrecoverable_errors, missing_datasets_path)
+					# continue
 				except Exception as e:
 					missing_datasets = add_missing_dataset(missing_datasets, sequence_id, 'content_read', f'Error while reading DICOM: {e}', raw_folder, args.unrecoverable_errors, missing_datasets_path)
 					continue
@@ -312,20 +318,20 @@ def download_datasets(args, config=None, all_datasets=None):
 				# Anonymize
 				anonymized_dicom_folder = dicom_folder.parent / f'{dicom_folder.name}_anonymized'
 				logging.info(f'    Anonymizing dataset to {anonymized_dicom_folder}...')
-				
+
 				# extraAnonymizationRules = {}
 				# extraAnonymizationRules[(0x0010, 0x0020)] = functools.partial(replace_with_sequence_id, sequence_id) 	# Patient ID
 				# extraAnonymizationRules[(0x0010, 0x0010)] = functools.partial(replace_with_sequence_id, sequence_id) 	# Patient's Name
-				
+
 				try:
 					anonymized_dicom_folder.mkdir(exist_ok=True)
 					# import dicomanonymizer
 					# dicomanonymizer.anonymize(str(dicom_folder), str(anonymized_dicom_folder), extraAnonymizationRules, True)
-					anonymize_fields(anonymization_fields, dicom_files, anonymized_dicom_folder, sequence_id, patient_id)
+					anonymize_fields(anonymization_fields, dicom_files, anonymized_dicom_folder, sequence_id, patient_id, shanoir_name)
 				except Exception as e:
 					missing_datasets = add_missing_dataset(missing_datasets, sequence_id, 'anonymization_error', str(e), raw_folder, args.unrecoverable_errors, missing_datasets_path)
 					continue
-				
+
 				# Zip the anonymized dicom file
 				dicom_zip_to_encrypt = anonymized_dicom_folder.parent / f'{anonymized_dicom_folder.name}.7z'
 				logging.info(f'    Compressing dataset to {dicom_zip_to_encrypt}...')
@@ -334,7 +340,7 @@ def download_datasets(args, config=None, all_datasets=None):
 				except Exception as e:
 					missing_datasets = add_missing_dataset(missing_datasets, sequence_id, 'zip_compression_error', str(e), raw_folder, args.unrecoverable_errors, missing_datasets_path)
 					continue
-				
+
 				final_output = dicom_zip_to_encrypt
 
 			if not args.skip_encryption and gpg_recipient is not None:
@@ -350,11 +356,11 @@ def download_datasets(args, config=None, all_datasets=None):
 					continue
 				if return_code != 0:
 					missing_datasets = add_missing_dataset(missing_datasets, sequence_id, 'encryption_error', str(e), raw_folder, args.unrecoverable_errors, missing_datasets_path)
-				
+
 				final_output = encrypted_dicom_zip
 
 			# Remove and rename files
-			
+
 			# Remove zip
 			# if not args.keep_intermediate_files:
 			# 	shutil.rmtree(dicom_zip)
@@ -375,11 +381,11 @@ def download_datasets(args, config=None, all_datasets=None):
 					rename_path(anonymized_dicom_folder, processed_folder / sequence_id / anonymized_dicom_folder.name)
 					if not args.skip_encryption:
 						rename_path(dicom_zip_to_encrypt, processed_folder / sequence_id / dicom_zip_to_encrypt.name)
-			
+
 			# Remove dicom
 			if not args.keep_intermediate_files:
 				shutil.rmtree(dicom_folder)
-			
+
 			# Remove downloaded_archive (which should be empty)
 			shutil.rmtree(destination_folder)
 
