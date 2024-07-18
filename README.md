@@ -18,9 +18,13 @@ Optionally, rename the `.env.example` to `.env` and set the variables (`shanoir_
 
 ### Installation with conda
 > [!IMPORTANT]
-> This installation is required if shanoir2bids.py is used 
+> This installation method is required if shanoir2bids.py is used 
 
-After installing a (mini)conda distribution type in a terminal  `conda create -f environment.yml` then activate the environment using `conda activate working-env` where `working-env` is the default name of the created environment 
+In an active conda virtual environment type 
+```
+pip install . 
+conda install -c conda-forge heudiconv git-annex=*=alldep* datalad
+```
 ## Usage
 
 There are three scripts to download datasets:
