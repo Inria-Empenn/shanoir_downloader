@@ -17,7 +17,7 @@ jobs:
         with:
           auto-update-conda: true
           environment-file: environment.yml
-          activate-environment: test-install
+          activate-environment: working-env
           python-version: ${{ matrix.python-version }}
 
       # Create virtual env under each python version
