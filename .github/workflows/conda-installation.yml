@@ -23,7 +23,7 @@ jobs:
         shell:  bash -el {0}
         run: |
           python -m pip install .
-          conda install -c conda-forge heudiconv git-annex=*alldep datalaad
+          conda install -c conda-forge heudiconv git-annex=*=alldep* datalad
 
       # Create virtual env under each python version
       # (optional and a bit redundant because we are already on a specific python)
