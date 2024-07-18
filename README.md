@@ -8,14 +8,19 @@ The scripts `convert_dicoms_to_niftis.py` and `create_previews.py` enable to con
 
 ## Install
 
-It is advised to install the project in [a virtual environment](https://docs.python.org/3/tutorial/venv.html). 
-
+It is advised to install the project in python virtual environment relying either on [venv](https://docs.python.org/3/tutorial/venv.html) or preferably  [(mini)conda](https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html)
+### Installation with pip 
 [Install python with pip](https://www.python.org/downloads/) ; then use `pip install .` to install python dependencies.
 
 Optionally, rename the `.env.example` to `.env` and set the variables (`shanoir_password`, `gpg_recipient`) to your needs.
 
 *See the "Installing DicomAnonymizer" section if you want to use DicomAnonymizer for the dicom anonymization instead of PyDicom.*
 
+### Installation with conda
+> [!IMPORTANT]
+> This installation is required if shanoir2bids.py is used 
+
+After installing a (mini)conda distribution type in a terminal  `conda create -f environment.yml` then activate the environment using `conda activate working-env` where `working-env` is the default name of the created environment 
 ## Usage
 
 There are three scripts to download datasets:
