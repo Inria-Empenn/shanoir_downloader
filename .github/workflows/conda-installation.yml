@@ -16,9 +16,12 @@ jobs:
         uses: conda-incubator/setup-miniconda@v3
         with:
           auto-update-conda: true
-          environment-file: environment.yml
           activate-environment: working-env
           python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: |
+          python -m pip install -e .
+          conda install -c conda-forge heudiconv git-annex=*alldep datalaad
 
       # Create virtual env under each python version
       # (optional and a bit redundant because we are already on a specific python)
