@@ -78,9 +78,10 @@ def rename_path(old_path, new_path):
 def anonymize_fields(anonymization_fields, dicom_files, dicom_output_path, sequence_id, patient_id, shanoir_name):
 	for dicom_file in dicom_files:
 		ds = pydicom.dcmread(str(dicom_file))
-		ds.PatientID = patient_id if patient_id is not None else sequence_id # [(0x0010, 0x0010)]
-		ds.PatientName = patient_id if patient_id is not None else sequence_id # [(0x0010, 0x0020)]
-
+		# [(0x0010, 0x0010)]
+		ds.PatientID = patient_id if patient_id is not None else sequence_id
+		# [(0x0010, 0x0020)]
+		ds.PatientName = patient_id if patient_id is not None else sequence_id
 		# Update Other Patient IDs
 		ds.OtherPatientIDs = sequence_id
 		for index, row in anonymization_fields.iterrows():
@@ -327,7 +328,7 @@ def download_datasets(args, config=None, all_datasets=None):
 					anonymized_dicom_folder.mkdir(exist_ok=True)
 					# import dicomanonymizer
 					# dicomanonymizer.anonymize(str(dicom_folder), str(anonymized_dicom_folder), extraAnonymizationRules, True)
-					anonymize_fields(anonymization_fields, dicom_files, anonymized_dicom_folder, sequence_id, patient_id, shanoir_name)
+					anonymize_fields(anonymization_fields, dicom_files, anonymized_dicom_folder, str(sequence_id), str(patient_id), str(shanoir_name))
 				except Exception as e:
 					missing_datasets = add_missing_dataset(missing_datasets, sequence_id, 'anonymization_error', str(e), raw_folder, args.unrecoverable_errors, missing_datasets_path)
 					continue
@@ -355,7 +356,7 @@ def download_datasets(args, config=None, all_datasets=None):
 					missing_datasets = add_missing_dataset(missing_datasets, sequence_id, 'encryption_error', str(e), raw_folder, args.unrecoverable_errors, missing_datasets_path)
 					continue
 				if return_code != 0:
-					missing_datasets = add_missing_dataset(missing_datasets, sequence_id, 'encryption_error', str(e), raw_folder, args.unrecoverable_errors, missing_datasets_path)
+					missing_datasets = add_missing_dataset(missing_datasets, sequence_id, 'encryption_error', "Encryption error", raw_folder, args.unrecoverable_errors, missing_datasets_path)
 
 				final_output = encrypted_dicom_zip
 
