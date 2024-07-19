@@ -21,8 +21,13 @@ Optionally, rename the `.env.example` to `.env` and set the variables (`shanoir_
 > This installation method is required if shanoir2bids.py is used 
 
 In an active conda virtual environment type 
-```
+```bash
+#use pip packages as dependencies
+conda config --set pip_interop_enabled True
 pip install . 
+#replace pip packages with conda packages when equivalent
+conda update --all
+# install missing conda packages (far simpler than using pip)
 conda install -c conda-forge heudiconv git-annex=*=alldep* datalad
 ```
 ## Usage
