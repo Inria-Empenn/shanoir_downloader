@@ -8,14 +8,28 @@ The scripts `convert_dicoms_to_niftis.py` and `create_previews.py` enable to con
 
 ## Install
 
-It is advised to install the project in [a virtual environment](https://docs.python.org/3/tutorial/venv.html). 
-
-[Install python with pip](https://www.python.org/downloads/) ; then use `pip install -r requirements.txt` to install python dependencies.
+It is advised to install the project in python virtual environment relying either on [venv](https://docs.python.org/3/tutorial/venv.html) or preferably  [(mini)conda](https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html)
+### Installation with pip 
+[Install python with pip](https://www.python.org/downloads/) ; then use `pip install .` to install python dependencies.
 
 Optionally, rename the `.env.example` to `.env` and set the variables (`shanoir_password`, `gpg_recipient`) to your needs.
 
 *See the "Installing DicomAnonymizer" section if you want to use DicomAnonymizer for the dicom anonymization instead of PyDicom.*
 
+### Installation with conda
+> [!IMPORTANT]
+> This installation method is required if shanoir2bids.py is used 
+
+In an active conda virtual environment type 
+```bash
+#use pip packages as dependencies
+conda config --set pip_interop_enabled True
+pip install . 
+#replace pip packages with conda packages when equivalent
+conda update --all
+# install missing conda packages (far simpler than using pip)
+conda install -c conda-forge heudiconv git-annex=*=alldep* datalad
+```
 ## Usage
 
 There are three scripts to download datasets:

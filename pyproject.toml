@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=64", "setuptools_scm>=8"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "shanoir-downloader"
+version = "0.0.1"
+
+dynamic = ["dependencies", "optional-dependencies"]
+
+requires-python = ">=3.8, <3.11"
+
+authors = [
+  {name = "Arthur Masson",email = "arthur.masson@inria.fr"},
+  {name = "Quentin Duché", email = "quentin.duche@irisa.fr"},
+  {name = "Malo Gaubert", email = "malo.gaubert@irisa.fr"},
+]
+maintainers = [
+  {name = "Quentin Duché", email = "quentin.duche@irisa.fr"}
+]
+description = "Download Shanoir Datasets in various format using Python"
+readme = "README.md"
+license = {file = "LICENSE"}
+keywords = ["Shanoir", "DICOM", "NIFTI", "BIDS"]
+classifiers = [
+  "Programming Language :: Python"
+]
+
+[project.urls]
+Repository = "https://github.com/Inria-Empenn/shanoir_downloader.git"
+"Bug Tracker" = "https://github.com/Inria-Empenn/shanoir_downloader/issues"
+Changelog = "https://github.com/Inria-Empenn/shanoir_downloader/blob/master/CHANGELOG.md"
+
+[tool.setuptools]
+py-modules = []
+
+[tool.setuptools_scm]
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+
+
+#optional-dependencies = {dev = { file = ["requirements-dev.txt"] }}
+#[project.scripts]
+#spam-cli = "shanoir-downloader:main_cli"
+
+#
+#[project.entry-points."spam.magical"]
+#tomatoes = "spam:main_tomatoes"
