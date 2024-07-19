@@ -22,8 +22,10 @@ jobs:
       - name: Install dependencies
         shell:  bash -el {0}
         run: |
+          conda config --set pip_interop_enabled True
           python -m pip install .
-          conda install -c conda-forge heudiconv git-annex=*=alldep* datalad
+          conda update --all
+          conda install -c conda-forge heudiconv bids-validator dcm2niix git-annex=*=alldep* datalad 
 
       # Create virtual env under each python version
       # (optional and a bit redundant because we are already on a specific python)
