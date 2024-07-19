@@ -52,7 +52,11 @@ The dictionary in the json file must have four keys :
     -> "bidsDir"    : str, BIDS subdirectory sequence name (eg : "anat", "func" or "dwi", ...)
     -> "bidsName"   : str, BIDS sequence name (eg: "t1w-mprage", "t2-hr", "cusp66-ap-b0", ...)
 ```
-An example is provided in the file `s2b_example_config.json`
+
+An example is provided in the file `s2b_example_config.json`.
+
+To download longitudinal data, a key `session` and a new entry `bidsSession` in `data_to_bids` dictionaries should be defined in the JSON configuration files. Of note, only one session can be downloaded at once. Then, the key `session` is just a string, not a list as for subjects.
+
 
 ### Example usage
 
