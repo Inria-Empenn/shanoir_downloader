@@ -23,11 +23,13 @@ readme = "README.md"
 license = {file = "LICENSE"}
 keywords = ["Shanoir", "DICOM", "NIFTI", "BIDS"]
 classifiers = [
+
   "Programming Language :: Python",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10"
+
 ]
 
 [project.urls]

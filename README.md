@@ -31,6 +31,7 @@ conda update --all
 conda install -c conda-forge heudiconv git-annex=*=alldep* datalad
 ```
 ## Usage
+
 ## How to download Shanoir datasets ?
 
 There are three scripts to download datasets from a Shanoir instance: 
@@ -58,9 +59,11 @@ See `python shanoir_downloader_check.py --help` for more information.
 
 You might want to skip the anonymization process and the encryption process with the `--skip_anonymization` and `--skip_encryption` arguments respectively (or `-sa` and `-se`).
 
+
 ### `shanoir2bids.py`
 
 A `.json` configuration file must be provided to transform a Shanoir dataset into a BIDS dataset.
+
 ```
 -----------------------------[.json configuration file information]-------------------------------
 This file will tell the script what Shanoir datasets should be downloaded and how the data will be organised.
@@ -71,23 +74,29 @@ The dictionary in the json file must have four keys :
 "data_to_bids": list of dict, each dictionary specifies datasets to download and BIDS format with the following keys :
     -> "datasetName": str, Shanoir name for the sequence to search
     -> "bidsDir"    : str, BIDS subdirectory sequence name (eg : "anat", "func" or "dwi", ...)
+
     -> "bidsName"   : str, BIDS sequence name (eg: "t1w", "acq-b0_dir-AP", ...)
 ```
 Please refer to the [BIDS starter kit](https://bids-standard.github.io/bids-starter-kit/folders_and_files/files.html) 
 for exhaustive templates of filenames. A BIDS compatible example is provided in the file `s2b_example_config.json`.
 
+
 To download longitudinal data, a key `session` and a new entry `bidsSession` in `data_to_bids` dictionaries should be defined in the JSON configuration files. Of note, only one session can be downloaded at once. Then, the key `session` is just a string, not a list as for subjects.
+
 
 
 ### Download Examples 
 #### Raw download 
+
 To download datasets, verify the content of them, anonymize them and / or encrypt them you can use a command like:
 
 `python shanoir_downloader_check.py -u username -d shanoir.irisa.fr -ids path/to/datasets_to_download.csv -of path/to/output/folder/ -se -lf path/to/downloads.log`
 
 The `example_input_check.csv` file in this repository is an example input file (the format of the `datasets_to_download.csv` file should be the same).
 
+
 #### Solr search download
+
 You can also download datasets from a [SolR search](https://shanoir.irisa.fr/shanoir-ng/solr-search) as on the website:
 
 `python shanoir_downloader.py -u amasson -d shanoir.irisa.fr -of /data/amasson/test/shanoir_test4 --search_text "FLAIR" -p 1 -s 2 `
@@ -98,6 +107,7 @@ where `--search_text` is the string you would use on [the SolR search page](http
 `python shanoir2bids.py -j s2b_example_config.json -of my_download_dir --outformat nifti` will download Shanoir datasets identified in the configuration file  saves them as DICOM and convert them  into a BIDS datalad dataset into `my_download_dir`.
 
 ## About Solr Search 
+
 
 The `--search_text` and `--expert_mode` arguments work as on the [Shanoir search page](https://shanoir.irisa.fr/shanoir-ng/solr-search).
 
