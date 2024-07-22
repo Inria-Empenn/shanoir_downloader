@@ -9,7 +9,7 @@
     {"datasetName": "Diff cusp66 b0 PA 1.5mm", "bidsDir": "dwi", "bidsName": "acq-b0_dir-AP_dwi"},
     {"datasetName": "Diff cusp66 b0 PA 1.5mm", "bidsDir": "dwi", "bidsName": "acq-b0_dir-PA_dwi"}
   ],
-    "dcm2niix": "/home/alpron/softs/miniconda3/bin/dcm2niix",
+    "dcm2niix": "/home/alpron/softs/miniconda3/envs/test-env/bin/dcm2niix",
     "dcm2niix_options_comment": "dcm2niix configuration options in the nipype format (see https://nipype.readthedocs.io/en/latest/api/generated/nipype.interfaces.dcm2nii.html)",
     "dcm2niix_options": {
         "bids_format": true,
