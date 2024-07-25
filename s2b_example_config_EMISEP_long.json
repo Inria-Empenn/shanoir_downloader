@@ -4,8 +4,8 @@
   "session": "08-74 MO ENCEPHALE",
   "data_to_bids":
   [
-    {"datasetName": "3D T1 MPRAGE", "bidsDir": "brain", "bidsName": "T1w", "bidsSession": "M00"},
-    {"datasetName": "*3d flair*", "bidsDir": "brain", "bidsName": "FLAIR", "bidsSession": "M00"},
+    {"datasetName": "3D T1 MPRAGE", "bidsDir": "anat", "bidsName": "T1w", "bidsSession": "M00"},
+    {"datasetName": "*3d flair*", "bidsDir": "anat", "bidsName": "FLAIR", "bidsSession": "M00"},
     {"datasetName": "*c1c3*", "bidsDir": "anat", "bidsName": "acq-axC1C3_T2w", "bidsSession": "M00"},
     {"datasetName": "*c1-c3*", "bidsDir": "anat", "bidsName": "acq-axC1C3_T2w", "bidsSession": "M00"},
 
@@ -64,7 +64,17 @@
 
   ],
   "dcm2niix":"/home/mgaubert/Software/dcm2niix/dcm2niix_v1.0.20211006/dcm2niix",
-  "dcm2niix_options": "-v 0 -z y -ba n"
+  "dcm2niix_options": {
+        "bids_format": true,
+        "anon_bids": false,
+        "compress": "y",
+        "compression": 5,
+        "crop": false,
+        "has_private": false,
+        "ignore_deriv": false,
+        "single_file": false,
+        "verbose": false
+    }
 }
 
 	
