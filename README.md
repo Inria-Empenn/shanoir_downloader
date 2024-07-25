@@ -23,12 +23,9 @@ Optionally, rename the `.env.example` to `.env` and set the variables (`shanoir_
 In an active conda virtual environment type 
 ```bash
 #use pip packages as dependencies
-conda config --set pip_interop_enabled True
-pip install . 
-#replace pip packages with conda packages when equivalent
-conda update --all
 # install missing conda packages (far simpler than using pip)
-conda install -c conda-forge heudiconv git-annex=*=alldep* datalad
+conda install -c conda-forge -c https://conda.anaconda.org/simpleitk SimpleITK brotli bids-validator certifi charset-normalizer dicom-anonymizer idna importlib-metadata 'numpy<2.0' pandas py7zr pybcj pycryptodomex pyppmd pytz pydicom python-dotenv python-dateutil  requests six texttable tqdm typing_extensions urllib3 zipp pydicom dicom2nifti Pillow  heudiconv git-annex=*=alldep* datalad
+
 ```
 ## Usage
 
