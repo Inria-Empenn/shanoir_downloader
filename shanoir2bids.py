@@ -683,7 +683,7 @@ Search Text : "{}" \n""".format(
             shutil.rmtree(tmp_dicom.parent, ignore_errors=True)
     def include_configuration_file(self):
         self.json_config_file
-        datalad.api.copy_file(self.json_config_file, dataset=Path(self.dl_dir).joinpath(self.shanoir_study_id))
+        datalad.api.copy_file(self.json_config_file, dataset=Path(self.dl_dir).joinpath(self.shanoir_study_id), message=f"Copying download configuration file into the {self.shanoir_study_id} dataset")
         pass
 
 
