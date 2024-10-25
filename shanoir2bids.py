@@ -201,7 +201,7 @@ def generate_bids_heuristic_file(
 
 def create_bids_key(dataset):
 
-    template = create_key(subdir=dataset['bidsDir'],file_suffix=r"run-{{item:02d}}_" + dataset['bidsName'],outtype={outtype})
+    template = create_key(subdir=dataset['bidsDir'],file_suffix="_".join(dataset['bidsName'].split('_')[:-1]) + '_' + r"run-{{item:02d}}_" + dataset['bidsName'].split('_')[-1],outtype={outtype})
     return template
 
 def get_dataset_to_key_mapping(shanoir2bids):
