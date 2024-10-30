@@ -27,6 +27,9 @@ from heudiconv.main import workflow
 # import loggger used in heudiconv workflow
 from heudiconv.main import lgr
 import bids_validator
+import datalad
+
+
 
 # Load environment variables
 load_dotenv(dotenv_path=opj(opd(__file__), ".env"))
@@ -678,6 +681,11 @@ Search Text : "{}" \n""".format(
             # beware of side effects
             shutil.rmtree(tmp_archive.parent, ignore_errors=True)
             shutil.rmtree(tmp_dicom.parent, ignore_errors=True)
+    def include_configuration_file(self):
+        self.json_config_file
+        datalad.api.copy_file(self.json_config_file, dataset=Path(self.dl_dir).joinpath(self.shanoir_study_id), message=f"Copying download configuration file into the {self.shanoir_study_id} dataset")
+        pass
+
 
     def download(self):
         """
@@ -698,6 +706,8 @@ Search Text : "{}" \n""".format(
                     + " in {}m{}s".format(dur_min, dur_sec)
             )
             banner_msg(end_msg)
+        self.include_configuration_file()
+
 
 
 def main():
@@ -768,6 +778,7 @@ def main():
     else:
         if stb.is_mapping_bids()[0]:
             stb.download()
+
         else:
             print(
                 f"Provided BIDS keys {stb.is_mapping_bids()[1]} are not BIDS compliant check syntax in provided configuration file {args.config_file}"
