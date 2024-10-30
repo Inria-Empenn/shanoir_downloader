@@ -433,28 +433,26 @@ class DownloadShanoirDatasetToBIDS:
         else:
             normalised_subjects = subjects
 
-        sessions = self.shanoir_session_id
+        sessions = list(set([d['bidsSession'] for d in self.shanoir2bids_dict if 'bidsSession' in d]))
         extension = '.nii.gz'
 
-        if sessions == '*':
+        if not sessions:
             paths = (
                 "/" + "sub-" + subject + '/' +
                 map["bidsDir"] + '/' +
                 "sub-" + subject + '_' +
                 map["bidsName"] + extension
-
                 for subject in normalised_subjects
                 for map in self.shanoir2bids_dict
             )
         else:
             paths = (
                 "/" + "sub-" + subject + '/' +
-                "ses-" + session + '/' +
+                "ses-" + map['bidsSession'] + '/' +
                 map["bidsDir"] + '/' +
-                "sub-" + subject + '_' + "ses-" + session + '_' +
+                "sub-" + subject + '_' + "ses-" + map['bidsSession'] + '_' +
                 map["bidsName"] + extension
 
-                for session in sessions
                 for subject in normalised_subjects
                 for map in self.shanoir2bids_dict
             )
