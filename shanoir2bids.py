@@ -764,11 +764,10 @@ def main():
             f"WARNING!: Current dcm2niix path {stb.actual_dcm2niix_path} is different from dcm2niix configured path {stb.dcm2niix_path}"
         )
     else:
-        if stb.is_mapping_bids()[0]:
+        if not stb.is_mapping_bids()[0]:
             print(f" WARNING !: Provided BIDS keys {stb.is_mapping_bids()[1]} are not BIDS compliant check syntax in provided configuration file {args.config_file}"
             )
         stb.download()
-
 
 
 
