@@ -489,6 +489,13 @@ class DownloadShanoirDatasetToBIDS:
         create_tmp_directory(tmp_archive)
         create_tmp_directory(tmp_dicom)
 
+        # BIDS subject id (search and replace)
+        bids_subject_id = subject_to_search
+        for far in self.list_fars:
+            bids_subject_id.replace(far[K_FIND], far[K_REPLACE])
+
+        bids_seq_session = None
+
         # Loop on each sequence defined in the dictionary
         for seq in range(self.n_seq):
             # Isolate elements that are called many times
@@ -505,6 +512,8 @@ class DownloadShanoirDatasetToBIDS:
                 bids_seq_session = self.shanoir2bids_dict[seq][
                     K_BIDS_SES
                 ]  # Sequence BIDS nickname (NEW)
+            else:
+                bids_seq_session = None
 
             # Print message concerning the sequence that is being downloaded
             print(
@@ -573,24 +582,22 @@ Search Text : "{}" \n""".format(
                 else:
                     for item in response.json()["content"]:
                         # Define subject_id
-                        su_id = item["subjectName"]
+                        # su_id = item["subjectName"]
                         # If the user has defined a list of edits to subject names... then do the find and replace
-                        for far in self.list_fars:
-                            su_id = su_id.replace(far[K_FIND], far[K_REPLACE])
+                        # weird to do it at the dataset level
+
                         # ID of the subject (sub-*)
-                        subject_id = su_id
+                        # read_bids_subject_id = su_id
 
                         # correct BIDS mapping of the searched dataset
                         bids_seq_mapping = {
                             "datasetName": item["datasetName"],
                             "bidsDir": bids_seq_subdir,
                             "bidsName": bids_seq_name,
-                            "bids_subject_id": subject_id,
+                            "bids_subject_id": bids_subject_id,
                         }
 
-                        if self.longitudinal:
-                            bids_seq_mapping["bids_session_id"] = bids_seq_session
-                        else:
+                        if not self.longitudinal:
                             bids_seq_session = None
 
                         bids_seq_mapping["bids_session_id"] = bids_seq_session
@@ -653,7 +660,7 @@ Search Text : "{}" \n""".format(
                 workflow_params = {
                     "files": glob(opj(tmp_dicom, "*", "*.dcm"), recursive=True),
                     "outdir": opj(self.dl_dir, self.shanoir_study_id).replace(' ', ''),
-                    "subjs": [subject_id],
+                    "subjs": [bids_subject_id],
                     "converter": "dcm2niix",
                     "heuristic": heuristic_file.name,
                     "bids_options": "--bids",
@@ -685,17 +692,20 @@ Search Text : "{}" \n""".format(
         self.set_log_filename()
         self.configure_parser()  # Configure the shanoir_downloader parser
         fp = open(self.log_fn, "w")
-        for subject_to_search in self.shanoir_subjects:
-            t_start_subject = time()
-            self.download_subject(subject_to_search=subject_to_search)
-            dur_min = int((time() - t_start_subject) // 60)
-            dur_sec = int((time() - t_start_subject) % 60)
-            end_msg = (
-                    "Downloaded dataset for subject "
-                    + subject_to_search
-                    + " in {}m{}s".format(dur_min, dur_sec)
-            )
-            banner_msg(end_msg)
+        if self.shanoir_subjects is not None:
+            for subject_to_search in self.shanoir_subjects:
+                t_start_subject = time()
+                self.download_subject(subject_to_search=subject_to_search)
+                dur_min = int((time() - t_start_subject) // 60)
+                dur_sec = int((time() - t_start_subject) % 60)
+                end_msg = (
+                        "Downloaded dataset for subject "
+                        + subject_to_search
+                        + " in {}m{}s".format(dur_min, dur_sec)
+                )
+                banner_msg(end_msg)
+        else:
+            print(f"No Shanoir Subjects to Download")
 
 
 def main():
