@@ -201,7 +201,7 @@ def generate_bids_heuristic_file(
 
 def create_bids_key(dataset):
 
-    template = create_key(subdir=dataset['bidsDir'],file_suffix=r"run-{{item:02d}}_" + dataset['bidsName'],outtype={outtype})
+    template = create_key(subdir=dataset['bidsDir'],file_suffix="_".join(dataset['bidsName'].split('_')[:-1]) + '_' + r"run-{{item:02d}}_" + dataset['bidsName'].split('_')[-1],outtype={outtype})
     return template
 
 def get_dataset_to_key_mapping(shanoir2bids):
@@ -433,28 +433,26 @@ class DownloadShanoirDatasetToBIDS:
         else:
             normalised_subjects = subjects
 
-        sessions = self.shanoir_session_id
+        sessions = list(set([d['bidsSession'] for d in self.shanoir2bids_dict if 'bidsSession' in d]))
         extension = '.nii.gz'
 
-        if sessions == '*':
+        if not sessions:
             paths = (
                 "/" + "sub-" + subject + '/' +
                 map["bidsDir"] + '/' +
                 "sub-" + subject + '_' +
                 map["bidsName"] + extension
-
                 for subject in normalised_subjects
                 for map in self.shanoir2bids_dict
             )
         else:
             paths = (
                 "/" + "sub-" + subject + '/' +
-                "ses-" + session + '/' +
+                "ses-" + map['bidsSession'] + '/' +
                 map["bidsDir"] + '/' +
-                "sub-" + subject + '_' + "ses-" + session + '_' +
+                "sub-" + subject + '_' + "ses-" + map['bidsSession'] + '_' +
                 map["bidsName"] + extension
 
-                for session in sessions
                 for subject in normalised_subjects
                 for map in self.shanoir2bids_dict
             )
@@ -491,6 +489,13 @@ class DownloadShanoirDatasetToBIDS:
         create_tmp_directory(tmp_archive)
         create_tmp_directory(tmp_dicom)
 
+        # BIDS subject id (search and replace)
+        bids_subject_id = subject_to_search
+        for far in self.list_fars:
+            bids_subject_id.replace(far[K_FIND], far[K_REPLACE])
+
+        bids_seq_session = None
+
         # Loop on each sequence defined in the dictionary
         for seq in range(self.n_seq):
             # Isolate elements that are called many times
@@ -507,6 +512,8 @@ class DownloadShanoirDatasetToBIDS:
                 bids_seq_session = self.shanoir2bids_dict[seq][
                     K_BIDS_SES
                 ]  # Sequence BIDS nickname (NEW)
+            else:
+                bids_seq_session = None
 
             # Print message concerning the sequence that is being downloaded
             print(
@@ -575,24 +582,22 @@ Search Text : "{}" \n""".format(
                 else:
                     for item in response.json()["content"]:
                         # Define subject_id
-                        su_id = item["subjectName"]
+                        # su_id = item["subjectName"]
                         # If the user has defined a list of edits to subject names... then do the find and replace
-                        for far in self.list_fars:
-                            su_id = su_id.replace(far[K_FIND], far[K_REPLACE])
+                        # weird to do it at the dataset level
+
                         # ID of the subject (sub-*)
-                        subject_id = su_id
+                        # read_bids_subject_id = su_id
 
                         # correct BIDS mapping of the searched dataset
                         bids_seq_mapping = {
                             "datasetName": item["datasetName"],
                             "bidsDir": bids_seq_subdir,
                             "bidsName": bids_seq_name,
-                            "bids_subject_id": subject_id,
+                            "bids_subject_id": bids_subject_id,
                         }
 
-                        if self.longitudinal:
-                            bids_seq_mapping["bids_session_id"] = bids_seq_session
-                        else:
+                        if not self.longitudinal:
                             bids_seq_session = None
 
                         bids_seq_mapping["bids_session_id"] = bids_seq_session
@@ -654,12 +659,13 @@ Search Text : "{}" \n""".format(
                 self.export_dcm2niix_config_options(dcm2niix_config_file.name)
                 workflow_params = {
                     "files": glob(opj(tmp_dicom, "*", "*.dcm"), recursive=True),
-                    "outdir": opj(self.dl_dir, str(self.shanoir_study_id)),
-                    "subjs": [subject_id],
+                    "outdir": opj(self.dl_dir, self.shanoir_study_id).replace(' ', ''),
+                    "subjs": [bids_subject_id],
                     "converter": "dcm2niix",
                     "heuristic": heuristic_file.name,
                     "bids_options": "--bids",
                     # "with_prov": True,
+                    "debug": self.debug_mode,
                     "dcmconfig": dcm2niix_config_file.name,
                     "datalad": True,
                     "minmeta": True,
@@ -669,15 +675,23 @@ Search Text : "{}" \n""".format(
 
                 if self.longitudinal:
                     workflow_params["session"] = bids_seq_session
+                try:
+                    workflow(**workflow_params)
+                except AssertionError:
+                    error =  (f" \n >> WARNING : No DICOM file available for conversion for subject {subject_to_search} \n "
+                              f"If some datasets are to be downloaded check log file and your configuration file syntax \n ")
+                    print(error)
+                    fp.write(error)
+                finally:
 
-                workflow(**workflow_params)
-                fp.close()
-        if not self.debug_mode:
-            shutil.rmtree(tmp_archive, ignore_errors=True)
-            shutil.rmtree(tmp_dicom, ignore_errors=True)
-            # beware of side effects
-            shutil.rmtree(tmp_archive.parent, ignore_errors=True)
-            shutil.rmtree(tmp_dicom.parent, ignore_errors=True)
+                    if not self.debug_mode:
+                        shutil.rmtree(tmp_archive, ignore_errors=True)
+                        shutil.rmtree(tmp_dicom, ignore_errors=True)
+                        # beware of side effects
+                        shutil.rmtree(tmp_archive.parent, ignore_errors=True)
+                        shutil.rmtree(tmp_dicom.parent, ignore_errors=True)
+
+                    fp.close()
 
     def download(self):
         """
@@ -687,17 +701,20 @@ Search Text : "{}" \n""".format(
         self.set_log_filename()
         self.configure_parser()  # Configure the shanoir_downloader parser
         fp = open(self.log_fn, "w")
-        for subject_to_search in self.shanoir_subjects:
-            t_start_subject = time()
-            self.download_subject(subject_to_search=subject_to_search)
-            dur_min = int((time() - t_start_subject) // 60)
-            dur_sec = int((time() - t_start_subject) % 60)
-            end_msg = (
-                    "Downloaded dataset for subject "
-                    + subject_to_search
-                    + " in {}m{}s".format(dur_min, dur_sec)
-            )
-            banner_msg(end_msg)
+        if self.shanoir_subjects is not None:
+            for subject_to_search in self.shanoir_subjects:
+                t_start_subject = time()
+                self.download_subject(subject_to_search=subject_to_search)
+                dur_min = int((time() - t_start_subject) // 60)
+                dur_sec = int((time() - t_start_subject) % 60)
+                end_msg = (
+                        "Downloaded dataset for subject "
+                        + subject_to_search
+                        + " in {}m{}s".format(dur_min, dur_sec)
+                )
+                banner_msg(end_msg)
+        else:
+            print(f"No Shanoir Subjects to Download")
 
 
 def main():
@@ -763,15 +780,13 @@ def main():
 
     if not stb.is_correct_dcm2niix():
         print(
-            f"Current dcm2niix path {stb.actual_dcm2niix_path} is different from dcm2niix configured path {stb.dcm2niix_path}"
+            f"WARNING!: Current dcm2niix path {stb.actual_dcm2niix_path} is different from dcm2niix configured path {stb.dcm2niix_path}"
         )
     else:
-        if stb.is_mapping_bids()[0]:
-            stb.download()
-        else:
-            print(
-                f"Provided BIDS keys {stb.is_mapping_bids()[1]} are not BIDS compliant check syntax in provided configuration file {args.config_file}"
+        if not stb.is_mapping_bids()[0]:
+            print(f" WARNING !: Provided BIDS keys {stb.is_mapping_bids()[1]} are not BIDS compliant check syntax in provided configuration file {args.config_file}"
             )
+        stb.download()
 
 
 if __name__ == "__main__":
