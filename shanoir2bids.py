@@ -665,6 +665,7 @@ Search Text : "{}" \n""".format(
                     "heuristic": heuristic_file.name,
                     "bids_options": "--bids",
                     # "with_prov": True,
+                    "debug": self.debug_mode,
                     "dcmconfig": dcm2niix_config_file.name,
                     "datalad": True,
                     "minmeta": True,
@@ -674,15 +675,23 @@ Search Text : "{}" \n""".format(
 
                 if self.longitudinal:
                     workflow_params["session"] = bids_seq_session
+                try:
+                    workflow(**workflow_params)
+                except AssertionError:
+                    error =  (f" \n >> WARNING : No DICOM file available for conversion for subject {subject_to_search} \n "
+                              f"If some datasets are to be downloaded check log file and your configuration file syntax \n ")
+                    print(error)
+                    fp.write(error)
+                finally:
 
-                workflow(**workflow_params)
-                fp.close()
-        if not self.debug_mode:
-            shutil.rmtree(tmp_archive, ignore_errors=True)
-            shutil.rmtree(tmp_dicom, ignore_errors=True)
-            # beware of side effects
-            shutil.rmtree(tmp_archive.parent, ignore_errors=True)
-            shutil.rmtree(tmp_dicom.parent, ignore_errors=True)
+                    if not self.debug_mode:
+                        shutil.rmtree(tmp_archive, ignore_errors=True)
+                        shutil.rmtree(tmp_dicom, ignore_errors=True)
+                        # beware of side effects
+                        shutil.rmtree(tmp_archive.parent, ignore_errors=True)
+                        shutil.rmtree(tmp_dicom.parent, ignore_errors=True)
+
+                    fp.close()
 
     def download(self):
         """
@@ -778,7 +787,6 @@ def main():
             print(f" WARNING !: Provided BIDS keys {stb.is_mapping_bids()[1]} are not BIDS compliant check syntax in provided configuration file {args.config_file}"
             )
         stb.download()
-
 
 
 if __name__ == "__main__":
