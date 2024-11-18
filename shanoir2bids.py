@@ -24,8 +24,6 @@ import shanoir_downloader
 from dotenv import load_dotenv
 from heudiconv.main import workflow
 
-# import loggger used in heudiconv workflow
-from heudiconv.main import lgr
 import bids_validator
 
 # Load environment variables
@@ -61,6 +59,7 @@ LIST_MANDATORY_KEYS_JSON = [K_JSON_STUDY_NAME, K_JSON_L_SUBJECTS, K_JSON_DATA_DI
 LIST_AUTHORIZED_KEYS_JSON = LIST_MANDATORY_KEYS_JSON + [
     K_DCM2NIIX_PATH,
     K_DCM2NIIX_OPTS,
+    K_JSON_FIND_AND_REPLACE,
     K_JSON_DATE_FROM,
     K_JSON_DATE_TO,
     K_JSON_SESSION,
@@ -493,6 +492,8 @@ class DownloadShanoirDatasetToBIDS:
         bids_subject_id = subject_to_search
         for far in self.list_fars:
             bids_subject_id.replace(far[K_FIND], far[K_REPLACE])
+
+        print(bids_subject_id)
 
         bids_seq_session = None
 
