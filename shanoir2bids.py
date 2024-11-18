@@ -493,7 +493,6 @@ class DownloadShanoirDatasetToBIDS:
         for far in self.list_fars:
             bids_subject_id.replace(far[K_FIND], far[K_REPLACE])
 
-        print(bids_subject_id)
 
         bids_seq_session = None
 
