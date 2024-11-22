@@ -8,6 +8,7 @@ shanoir2bids.py is a script that allows to download a Shanoir dataset and organi
 
 import os
 from os.path import join as opj, splitext as ops, exists as ope, dirname as opd
+import re
 from glob import glob
 import sys
 from pathlib import Path
@@ -179,9 +180,9 @@ def read_json_config_file(json_file):
 
 
 def generate_bids_heuristic_file(
-        shanoir2bids_dict,
-        path_heuristic_file,
-        output_type='("dicom","nii.gz")',
+    shanoir2bids_dict,
+    path_heuristic_file,
+    output_type='("dicom","nii.gz")',
 ) -> None:
     """Generate heudiconv heuristic.py file from shanoir2bids mapping dict
     Parameters
@@ -427,31 +428,55 @@ class DownloadShanoirDatasetToBIDS:
                 for i, far in enumerate(list_find_and_replace):
                     if i == 0:
                         normalised_subject = subject
-                    normalised_subject = normalised_subject.replace(far["find"], far["replace"])
+                    normalised_subject = normalised_subject.replace(
+                        far["find"], far["replace"]
+                    )
                 normalised_subjects.append(normalised_subject)
         else:
             normalised_subjects = subjects
 
-        sessions = list(set([d['bidsSession'] for d in self.shanoir2bids_dict if 'bidsSession' in d]))
-        extension = '.nii.gz'
+        sessions = list(
+            set(
+                [d["bidsSession"] for d in self.shanoir2bids_dict if "bidsSession" in d]
+            )
+        )
+        extension = ".nii.gz"
 
         if not sessions:
             paths = (
-                "/" + "sub-" + subject + '/' +
-                map["bidsDir"] + '/' +
-                "sub-" + subject + '_' +
-                map["bidsName"] + extension
+                "/"
+                + "sub-"
+                + subject
+                + "/"
+                + map["bidsDir"]
+                + "/"
+                + "sub-"
+                + subject
+                + "_"
+                + map["bidsName"]
+                + extension
                 for subject in normalised_subjects
                 for map in self.shanoir2bids_dict
             )
         else:
             paths = (
-                "/" + "sub-" + subject + '/' +
-                "ses-" + map['bidsSession'] + '/' +
-                map["bidsDir"] + '/' +
-                "sub-" + subject + '_' + "ses-" + map['bidsSession'] + '_' +
-                map["bidsName"] + extension
-
+                "/"
+                + "sub-"
+                + subject
+                + "/"
+                + "ses-"
+                + map["bidsSession"]
+                + "/"
+                + map["bidsDir"]
+                + "/"
+                + "sub-"
+                + subject
+                + "_"
+                + "ses-"
+                + map["bidsSession"]
+                + "_"
+                + map["bidsName"]
+                + extension
                 for subject in normalised_subjects
                 for map in self.shanoir2bids_dict
             )
@@ -493,7 +518,6 @@ class DownloadShanoirDatasetToBIDS:
         for far in self.list_fars:
             bids_subject_id.replace(far[K_FIND], far[K_REPLACE])
 
-
         bids_seq_session = None
 
         # Loop on each sequence defined in the dictionary
@@ -523,22 +547,43 @@ class DownloadShanoirDatasetToBIDS:
                 "[" + str(seq + 1) + "/" + str(self.n_seq) + "]",
             )
 
+            request_terms = [
+                self.shanoir_study_id,
+                shanoir_seq_name,
+                subject_to_search,
+                self.shanoir_session_id,
+                self.date_from,
+                self.date_to,
+            ]
+
+            def escape_solr_special_characters(s):
+                # List of Solr special characters
+                special_characters = r'\+\-\!\(\)\{\}\[\]\^"~\?:\\'
+                # remove \* from special characters to be able to use wildcards in solr
+                # Add more if needed
+                escape_pattern = re.compile(r'([{}])'.format(special_characters))
+                return escape_pattern.sub(r'\\\1', s)
+
+            escaped_request_terms = {s: escape_solr_special_characters(s) for s in request_terms}
+
             # Initialize the parser
             search_txt = (
-                    "studyName:"
-                    + self.shanoir_study_id.replace(" ", "?")
-                    + " AND datasetName:"
-                    + shanoir_seq_name.replace(" ", "?")
-                    + " AND subjectName:"
-                    + subject_to_search.replace(" ", "?")
-                    + " AND examinationComment:"
-                    + self.shanoir_session_id.replace(" ", "*")
-                    + " AND examinationDate:["
-                    + self.date_from
-                    + " TO "
-                    + self.date_to
-                    + "]"
+                "studyName:"
+                + escaped_request_terms[self.shanoir_study_id].replace(" ", "?")
+                + " AND datasetName:"
+                + escaped_request_terms[shanoir_seq_name].replace(" ", "?")
+                + " AND subjectName:"
+                + escaped_request_terms[subject_to_search].replace(" ", "?")
+                + " AND examinationComment:"
+                + escaped_request_terms[self.shanoir_session_id].replace(" ", "*")
+                + " AND examinationDate:["
+                + self.date_from
+                + " TO "
+                + self.date_to
+                + "]"
             )
+
+            print(search_txt)
 
             args = self.parser.parse_args(
                 [
@@ -647,19 +692,19 @@ Search Text : "{}" \n""".format(
 
         # Launch DICOM to BIDS conversion using heudiconv + heuristic file + dcm2niix options
         with tempfile.NamedTemporaryFile(
-                mode="r+", encoding="utf-8", dir=self.dl_dir, suffix=".py"
+            mode="r+", encoding="utf-8", dir=self.dl_dir, suffix=".py"
         ) as heuristic_file:
             # Generate Heudiconv heuristic file from configuration.json mapping
             generate_bids_heuristic_file(
                 bids_mapping, heuristic_file.name, output_type=self.output_file_type
             )
             with tempfile.NamedTemporaryFile(
-                    mode="r+", encoding="utf-8", dir=self.dl_dir, suffix=".json"
+                mode="r+", encoding="utf-8", dir=self.dl_dir, suffix=".json"
             ) as dcm2niix_config_file:
                 self.export_dcm2niix_config_options(dcm2niix_config_file.name)
                 workflow_params = {
                     "files": glob(opj(tmp_dicom, "*", "*.dcm"), recursive=True),
-                    "outdir": opj(self.dl_dir, self.shanoir_study_id).replace(' ', ''),
+                    "outdir": opj(self.dl_dir, self.shanoir_study_id).replace(" ", ""),
                     "subjs": [bids_subject_id],
                     "converter": "dcm2niix",
                     "heuristic": heuristic_file.name,
@@ -678,12 +723,13 @@ Search Text : "{}" \n""".format(
                 try:
                     workflow(**workflow_params)
                 except AssertionError:
-                    error =  (f" \n >> WARNING : No DICOM file available for conversion for subject {subject_to_search} \n "
-                              f"If some datasets are to be downloaded check log file and your configuration file syntax \n ")
+                    error = (
+                        f" \n >> WARNING : No DICOM file available for conversion for subject {subject_to_search} \n "
+                        f"If some datasets are to be downloaded check log file and your configuration file syntax \n "
+                    )
                     print(error)
                     fp.write(error)
                 finally:
-
                     if not self.debug_mode:
                         shutil.rmtree(tmp_archive, ignore_errors=True)
                         shutil.rmtree(tmp_dicom, ignore_errors=True)
@@ -708,9 +754,9 @@ Search Text : "{}" \n""".format(
                 dur_min = int((time() - t_start_subject) // 60)
                 dur_sec = int((time() - t_start_subject) % 60)
                 end_msg = (
-                        "Downloaded dataset for subject "
-                        + subject_to_search
-                        + " in {}m{}s".format(dur_min, dur_sec)
+                    "Downloaded dataset for subject "
+                    + subject_to_search
+                    + " in {}m{}s".format(dur_min, dur_sec)
                 )
                 banner_msg(end_msg)
         else:
@@ -784,7 +830,8 @@ def main():
         )
     else:
         if not stb.is_mapping_bids()[0]:
-            print(f" WARNING !: Provided BIDS keys {stb.is_mapping_bids()[1]} are not BIDS compliant check syntax in provided configuration file {args.config_file}"
+            print(
+                f" WARNING !: Provided BIDS keys {stb.is_mapping_bids()[1]} are not BIDS compliant check syntax in provided configuration file {args.config_file}"
             )
         stb.download()
 
