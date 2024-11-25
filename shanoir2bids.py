@@ -516,7 +516,7 @@ class DownloadShanoirDatasetToBIDS:
         # BIDS subject id (search and replace)
         bids_subject_id = subject_to_search
         for far in self.list_fars:
-            bids_subject_id.replace(far[K_FIND], far[K_REPLACE])
+            bids_subject_id = bids_subject_id.replace(far[K_FIND], far[K_REPLACE])
 
         bids_seq_session = None
 
