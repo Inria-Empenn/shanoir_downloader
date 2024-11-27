@@ -206,7 +206,7 @@ def create_bids_key(dataset):
     if len(split_filename) == 1:
         # remove unwanted first "_" 
         file_suffix = file_suffix[1:]
-    template = create_key(subdir=dataset['bidsDir'],file_suffix="_".join(dataset['bidsName'].split('_')[:-1]) + '_' + r"run-{{item:02d}}_" + dataset['bidsName'].split('_')[-1],outtype={outtype})
+    template = create_key(subdir=dataset['bidsDir'],file_suffix=file_suffix,outtype={outtype})
     return template
 
 def get_dataset_to_key_mapping(shanoir2bids):
@@ -219,7 +219,9 @@ def get_dataset_to_key_mapping(shanoir2bids):
 def simplify_runs(info):
     info_final = dict()
     for key in info.keys():
+        print(key)
         if len(info[key])==1:
+            print('Simplified key', key)
             new_template = key[0].replace('run-{{item:02d}}_','')
             new_key = (new_template, key[1], key[2])
             info_final[new_key] = info[key]
@@ -723,7 +725,7 @@ Search Text : "{}" \n""".format(
                     "overwrite": True,
                 }
 
-                if self.longitudinal:
+                if self.longitudinal and bids_seq_session is not None:
                     workflow_params["session"] = bids_seq_session
                 try:
                     workflow(**workflow_params)
