@@ -221,7 +221,6 @@ def create_bids_key(dataset):
         if len(split_filename) == 1:
             # remove unwanted first "_" 
             file_suffix = file_suffix[1:]
-    print(file_suffix)
     template = create_key(subdir=dataset['bidsDir'],file_suffix=file_suffix,outtype={outtype})
     return template
 
