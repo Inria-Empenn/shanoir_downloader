@@ -24,6 +24,7 @@ import shutil
 import shanoir_downloader
 from dotenv import load_dotenv
 from heudiconv.main import workflow
+from heudiconv.bids import sanitize_label
 
 import bids_validator
 
@@ -199,13 +200,28 @@ def generate_bids_heuristic_file(
 
     heuristic = f"""from heudiconv.heuristics.reproin import create_key
 
+
 def create_bids_key(dataset):
-    split_filename = dataset['bidsName'].split('_')
-    # insert additional run key to dissociate indentical scans
-    file_suffix = "_".join(split_filename[:-1]) + '_' + r"run-{{item:02d}}_" + split_filename[-1]
-    if len(split_filename) == 1:
-        # remove unwanted first "_" 
-        file_suffix = file_suffix[1:]
+
+    from heudiconv.bids import BIDSFile 
+    
+    bids_entities = BIDSFile._known_entities 
+    # check where to insert run key 
+    split_keyword = '_' # default
+    for entity in bids_entities[bids_entities.index('run') + 1 :]:
+        if entity in dataset['bidsName']:
+            split_keyword = '_' + entity
+            break 
+    split_filename = dataset['bidsName'].split(split_keyword)
+    if split_keyword != '_':
+        file_suffix = "".join(split_filename[:-1]) + '_' +  r"run-{{item:02d}}" +  split_keyword  +  split_filename[-1]
+    else:
+    # insert additional run key to dissociate identical scans
+        file_suffix = "_".join(split_filename[:-1]) + '_' + r"run-{{item:02d}}" + split_keyword + split_filename[-1]
+        if len(split_filename) == 1:
+            # remove unwanted first "_" 
+            file_suffix = file_suffix[1:]
+    print(file_suffix)
     template = create_key(subdir=dataset['bidsDir'],file_suffix=file_suffix,outtype={outtype})
     return template
 
@@ -453,12 +469,12 @@ class DownloadShanoirDatasetToBIDS:
             paths = (
                 "/"
                 + "sub-"
-                + subject
+                + sanitize_label(subject)
                 + "/"
                 + map["bidsDir"]
                 + "/"
                 + "sub-"
-                + subject
+                + sanitize_label(subject)
                 + "_"
                 + map["bidsName"]
                 + extension
@@ -469,18 +485,18 @@ class DownloadShanoirDatasetToBIDS:
             paths = (
                 "/"
                 + "sub-"
-                + subject
+                + sanitize_label(subject)
                 + "/"
                 + "ses-"
-                + map["bidsSession"]
+                + sanitize_label(map["bidsSession"])
                 + "/"
                 + map["bidsDir"]
                 + "/"
                 + "sub-"
-                + subject
+                + sanitize_label(subject)
                 + "_"
                 + "ses-"
-                + map["bidsSession"]
+                + sanitize_label(map["bidsSession"])
                 + "_"
                 + map["bidsName"]
                 + extension
