@@ -200,7 +200,12 @@ def generate_bids_heuristic_file(
     heuristic = f"""from heudiconv.heuristics.reproin import create_key
 
 def create_bids_key(dataset):
-
+    split_filename = dataset['bidsName'].split('_')
+    # insert additional run key to dissociate indentical scans
+    file_suffix = "_".join(split_filename[:-1]) + '_' + r"run-{{item:02d}}_" + split_filename[-1]
+    if len(split_filename) == 1:
+        # remove unwanted first "_" 
+        file_suffix = file_suffix[1:]
     template = create_key(subdir=dataset['bidsDir'],file_suffix="_".join(dataset['bidsName'].split('_')[:-1]) + '_' + r"run-{{item:02d}}_" + dataset['bidsName'].split('_')[-1],outtype={outtype})
     return template
 
