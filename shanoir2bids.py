@@ -383,6 +383,9 @@ class DownloadShanoirDatasetToBIDS:
             curr_time.minute,
             curr_time.second,
         )
+        dir_log = opj(self.dl_dir, 'shanoir_downloader_logs')
+        if not ope(dir_log):
+            Path(dir_log).mkdir(parents=True, exist_ok=True)
         self.log_fn = opj(self.dl_dir, 'shanoir_downloader_logs', basename)
 
     def toggle_longitudinal_version(self):
