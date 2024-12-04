@@ -44,7 +44,7 @@ def add_configuration_arguments(parser):
 	parser.add_argument('-ca', '--certificate', default='', required=False, help='Path to the CA bundle to use.')
 	parser.add_argument('-v', '--verbose', default=False, action='store_true', help='Print log messages.')
 	parser.add_argument('-t', '--timeout', type=float, default=60*4, help='The request timeout.')
-	parser.add_argument('-lf', '--log_file', type=str, help="Path to the log file. Default is output_folder/shanoir_downloader_logs/downloads.log", default=None)
+	parser.add_argument('-lf', '--log_file', type=str, help="Path to the log file. Default is output_folder/downloads.log", default=None)
 	return parser
 
 def add_ids_arguments(parser):
@@ -58,7 +58,7 @@ def init_logging(args):
 
 	verbose = args.verbose
 	
-	logfile = Path(args.log_file) if args.log_file else Path(args.output_folder, "shanoir_downloader_logs", f'downloads{datetime.datetime.now().strftime("%Y-%m-%d_%Hh%Mm%S")}.log')
+	logfile = Path(args.log_file) if args.log_file else Path(args.output_folder) / f'downloads{datetime.datetime.now().strftime("%Y-%m-%d_%Hh%Mm%S")}.log'
 	logfile.parent.mkdir(exist_ok=True, parents=True)
 
 	logging.basicConfig(
