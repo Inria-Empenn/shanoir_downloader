@@ -311,6 +311,7 @@ class DownloadShanoirDatasetToBIDS:
         )
         self.add_sns = False  # Add series number suffix to filename
         self.debug_mode = False  # No debug mode by default
+        self.datalad = True     # Activate datalad save by default
 
     def set_json_config_file(self, json_file):
         """
@@ -744,10 +745,11 @@ Search Text : "{}" \n""".format(
                     # "with_prov": True,
                     "debug": self.debug_mode,
                     "dcmconfig": dcm2niix_config_file.name,
-                    "datalad": True,
+                    "datalad": self.datalad,
                     "minmeta": True,
                     "grouping": "all",  # other options are too restrictive (tested on EMISEP)
                     "overwrite": True,
+
                 }
 
                 if self.longitudinal and bids_seq_session is not None:
@@ -835,6 +837,11 @@ def main():
         action="store_true",
         help="Toggle debug mode (keep temporary directories)",
     )
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--activate-datalad", action="store_true", dest="datalad", help="Store outputs as datalad dataset")
+    group.add_argument("--deactivate-datalad", action="store_false", dest="datalad", help="Store outputs as regular directory")
+    # by default save as datalad dataset
+    parser.set_defaults(datalad=True)
 
     args = parser.parse_args()
 
@@ -852,6 +859,8 @@ def main():
 
     if args.debug:
         stb.debug_mode = True
+
+    stb.datalad = args.datalad
 
     if args.longitudinal:
         stb.toggle_longitudinal_version()
