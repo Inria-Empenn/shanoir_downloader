@@ -1,4 +1,4 @@
-sequence_id,shanoir_name,series_description
-183900,0330085,FLAIR 3D SPACE SAG
-75656,4872,Sag CUBE flair 2nex 1.2mm
-75613,0720018,3D FLAIR 1mm ISO
+sequence_id,shanoir_name,series_description,patient_id
+183900,0330085,FLAIR 3D SPACE SAG,0330085
+75656,4872,Sag CUBE flair 2nex 1.2mm,4872
+75613,0720018,3D FLAIR 1mm ISO,0720018
