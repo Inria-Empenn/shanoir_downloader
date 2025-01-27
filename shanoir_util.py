@@ -233,3 +233,8 @@ def deleteDataset(config, datasetId):
     response = rest_delete(config, url, raise_for_status=False)
     return response.status_code
 
+def deleteExamination(config, examId):
+    url = 'https://' + config['domain'] + '/shanoir-ng/datasets/examinations/' + examId
+    response = rest_delete(config, url, raise_for_status=False)
+    return response.status_code
+
