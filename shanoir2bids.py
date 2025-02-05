@@ -737,7 +737,7 @@ Search Text : "{}" \n""".format(
                 self.export_dcm2niix_config_options(dcm2niix_config_file.name)
                 workflow_params = {
                     "files": glob(opj(tmp_dicom, "*", "*.dcm"), recursive=True),
-                    "outdir": opj(self.dl_dir, self.shanoir_study_id).replace(" ", ""),
+                    "outdir": self.dl_dir,
                     "subjs": [bids_subject_id],
                     "converter": "dcm2niix",
                     "heuristic": heuristic_file.name,
