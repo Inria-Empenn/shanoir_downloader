@@ -96,9 +96,7 @@ def init_logging(args):
         requests_log.propagate = True
 
 
-def initialize(args):
-    server_domain = args.domain
-    username = args.username
+def initialize(args, verbose=True):
 
     output_folder = Path(args.output_folder)
     output_folder.mkdir(parents=True, exist_ok=True)
@@ -147,7 +145,8 @@ def initialize(args):
                         proxy_url = proxy_config['user'] + ':' + proxy_config['password']
                     proxy_url += '@' + proxy_config['host'] + ':' + proxy_config['port']
         else:
-            print("Proxy configuration file not found. Proxy will be ignored.")
+            if verbose:
+                print("Proxy configuration file not found. Proxy will be ignored.")
 
     proxies = None
 
