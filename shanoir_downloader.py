@@ -140,8 +140,7 @@ def initialize(args, verbose=True):
                         proxy_config[proxy_key] = proxy_value
 
                 if 'enabled' not in proxy_config or proxy_config['enabled'] == 'true':
-                    if 'user' in proxy_config and len(proxy_config['user']) > 0 and 'password' in proxy_config and len(
-                            proxy_config['password']) > 0:
+                    if 'user' in proxy_config and len(proxy_config['user']) > 0 and 'password' in proxy_config and len(proxy_config['password']) > 0:
                         proxy_url = proxy_config['user'] + ':' + proxy_config['password']
                     proxy_url += '@' + proxy_config['host'] + ':' + proxy_config['port']
         else:
