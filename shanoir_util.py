@@ -38,6 +38,8 @@ def initialize(args):
 
     server_domain = args.domain
     username = args.username
+    if hasattr(args, 'service'):
+        service = args.service
 
     init_logging(args)
 
@@ -91,14 +93,19 @@ def initialize(args):
             'http': 'http://' + proxy_url,
             # 'https': 'https://' + proxy_url,
         }
+    result = {
+        'domain': server_domain,
+        'username': username,
+        'verify': verify,
+        'proxies': proxies,
+        'timeout': args.timeout,
+    }
 
-    return { 'domain': server_domain,
-             'username': username,
-             'verify': verify,
-             'proxies': proxies,
-             'timeout': args.timeout,
-             }
+    if 'service' in locals():
+        result['service'] = service
 
+    return result
+    
 access_token = None
 refresh_token = None
 
@@ -235,6 +242,11 @@ def deleteDataset(config, datasetId):
 
 def deleteExamination(config, examId):
     url = 'https://' + config['domain'] + '/shanoir-ng/datasets/examinations/' + examId
+    response = rest_delete(config, url, raise_for_status=False)
+    return response.status_code
+
+def deleteSubject(config, subjectId):
+    url = 'https://' + config['domain'] + '/shanoir-ng/' + config['service'] +'/subjects/' + subjectId
     response = rest_delete(config, url, raise_for_status=False)
     return response.status_code
 
