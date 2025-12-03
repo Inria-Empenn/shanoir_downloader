@@ -45,6 +45,9 @@ if __name__ == '__main__':
     args = parser.parse_args()
     config = shanoir_util.initialize(args)
 
+    SHANOIR_SHUTDOWN_HOUR = 2
+    SHANOIR_AVAILABLE_HOUR = 5
+
     # Get dataset Ids file
     dataset_ids = Path(args.dataset_ids) if args.dataset_ids else None
     if args.dataset_ids and not dataset_ids.exists():
@@ -55,9 +58,13 @@ if __name__ == '__main__':
             dataset_id_list = [dataset_id.strip() for dataset_id in file]
 
             for dataset_id in dataset_id_list:
+                now = datetime.now()
+                if now.hour >= SHANOIR_SHUTDOWN_HOUR and now.hour < SHANOIR_AVAILABLE_HOUR:
+                    future = datetime(now.year, now.month, now.day, SHANOIR_AVAILABLE_HOUR, 0)
+                    time.sleep((future-now).total_seconds())
                 result = shanoir_util.deleteDataset(config, dataset_id)
                 if result == 204:
-                    logging.error("Dataset " + dataset_id + " deleted with success.")
+                    logging.info("Dataset " + dataset_id + " deleted with success.")
                 else:
                     logging.error("Dataset " + dataset_id + ": Error during deletion " + str(result))
                 time.sleep(1)
