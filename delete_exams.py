@@ -45,6 +45,9 @@ if __name__ == '__main__':
     args = parser.parse_args()
     config = shanoir_util.initialize(args)
 
+    SHANOIR_SHUTDOWN_HOUR = 2
+    SHANOIR_AVAILABLE_HOUR = 5
+
     # Get examination Ids file
     examination_ids = Path(args.examination_ids) if args.examination_ids else None
     if args.examination_ids and not examination_ids.exists():
@@ -55,9 +58,13 @@ if __name__ == '__main__':
             examination_id_list = [examination_id.strip() for examination_id in file]
 
             for examination_id in examination_id_list: 
+                now = datetime.now()
+                if now.hour >= SHANOIR_SHUTDOWN_HOUR and now.hour < SHANOIR_AVAILABLE_HOUR:
+                    future = datetime(now.year, now.month, now.day, SHANOIR_AVAILABLE_HOUR, 0)
+                    time.sleep((future-now).total_seconds())
                 result = shanoir_util.deleteExamination(config, examination_id)
                 if result == 204:
-                    logging.error("Examination " + examination_id + " deleted with success.")
+                    logging.info("Examination " + examination_id + " deleted with success.")
                 else:
                     logging.error("Examination " + examination_id + ": Error during deletion " + str(result))
                 time.sleep(1)
