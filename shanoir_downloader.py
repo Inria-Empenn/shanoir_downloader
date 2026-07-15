@@ -151,7 +151,7 @@ def ask_access_token(config):
 	try:
 		password = os.environ['shanoir_password'] if 'shanoir_password' in os.environ else getpass.getpass(prompt='Password for Shanoir user ' + config['username'] + ': ', stream=None)
 		otp = os.environ['shanoir_otp'] if 'shanoir_otp' in os.environ else input(
-			'One-time 2FA code for Shanoir user ' + APIConfig.username + ': ')
+			'One-time 2FA code for Shanoir user ' + config['username'] + ': ')
 	except:
 		sys.exit(0)
 	url = 'https://' + config['domain'] + '/auth/realms/shanoir-ng/protocol/openid-connect/token'
