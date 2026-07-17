@@ -187,7 +187,7 @@ def get_filename_from_response(output_folder, response):
 		filename = str(output_folder / filenames[0]) if len(filenames) > 0 else None
 	if filename is None:
 		raise Exception('Could not find file name in response header', response.status_code, response.reason, response.error, response.headers, response)
-	return filename
+	return filename.replace("\"", "")
 
 try:
 	from tqdm import tqdm
