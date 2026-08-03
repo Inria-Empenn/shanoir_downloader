@@ -199,35 +199,66 @@ def generate_bids_heuristic_file(
         outtype = '("dicom","nii.gz")'
 
     heuristic = f"""from heudiconv.heuristics.reproin import create_key
+    
+def simplify_filename(input_file):
+    
+    from heudiconv.bids import BIDSFile
+    # TODO use BIDS official schema instead
+    bids_entities = tuple(BIDSFile._known_entities) + ("chunk",)
+
+    # deduplication BIDS entities
+    if not "run-" in input_file:
+        # insert additional run key to dissociate identical scans
+        # check where to insert run key
+        split_keyword = "_"  # default
+        for entity in bids_entities[bids_entities.index("run") + 1 :]:
+            if entity in input_file:
+                split_keyword = entity + "-"  # insure in a bids entity key
+                break
+
+        split_filename = input_file.split(split_keyword)
+        if split_keyword == "_":
+            file_suffix = (
+                "_".join(split_filename[:-1])
+                + "_"
+                + r"run-{{item:02d}}"
+                + split_keyword
+                + split_filename[-1]
+            )
+            if file_suffix[0] == "_":
+                file_suffix = file_suffix[1:]
+        else:
+
+            prefix = "".join(split_filename[:-1])
+            if prefix == "" or prefix[-1] == "_":
+                prefix = prefix[:-1]
+                file_suffix = (
+                    "".join(split_filename[:-1])
+                    + r"run-{{item:02d}}"
+                    + "_"
+                    + split_keyword
+                    + split_filename[-1]
+                )
+            else:
+                file_suffix = (
+                    "".join(split_filename[:-1])
+                    + "_"
+                    + r"run-{{item:02d}}"
+                    + "_"
+                    + split_keyword
+                    + split_filename[-1]
+                )
+    else:
+        file_suffix = input_file
+    return file_suffix
 
 
 def create_bids_key(dataset):
-
-    from heudiconv.bids import BIDSFile 
     
     # check if run key is already used in filename 
     # (could be done in Pybids or using heudiconv utils?) 
     
-    if not '_run-' in  dataset['bidsName']:
-        bids_entities = BIDSFile._known_entities 
-        # insert additional run key to dissociate identical scans
-        # check where to insert run key 
-        split_keyword = '_' # default
-        for entity in bids_entities[bids_entities.index('run') + 1 :]:
-            if entity in dataset['bidsName']:
-                split_keyword = '_' + entity
-                break 
-        split_filename = dataset['bidsName'].split(split_keyword)
-        if split_keyword != '_':
-            file_suffix = "".join(split_filename[:-1]) + '_' +  r"run-{{item:02d}}" +  split_keyword  +  split_filename[-1]
-        else:
-      
-            file_suffix = "_".join(split_filename[:-1]) + '_' + r"run-{{item:02d}}" + split_keyword + split_filename[-1]
-            if len(split_filename) == 1:
-                # remove unwanted first "_" 
-                file_suffix = file_suffix[1:]
-    else:
-        file_suffix = dataset['bidsName']
+    file_suffix = simplify_filename(dataset['bidsName'])
     template = create_key(subdir=dataset['bidsDir'],file_suffix=file_suffix,outtype={outtype})
     return template
 
