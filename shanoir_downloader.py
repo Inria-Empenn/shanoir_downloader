@@ -187,8 +187,7 @@ def get_filename_from_response(output_folder, response):
     if filename is None:
         raise Exception('Could not find file name in response header', response.status_code, response.reason,
                         response.error, response.headers, response)
-    return filename
-
+    return filename.replace('"', '')
 
 try:
     from tqdm import tqdm
