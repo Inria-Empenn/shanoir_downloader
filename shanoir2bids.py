@@ -694,9 +694,7 @@ Search Text : "{}" \n""".format(
                         fp.write("  >> Downloading archive OK\n")
 
                         # Extract the downloaded archive
-                        dl_archive = glob(opj(tmp_archive, "*" + item["id"] + "*.zip"))[
-                            0
-                        ]
+                        dl_archive = glob(opj(tmp_archive, "*" + item["id"] + "*.zip"))[0]
                         with zipfile.ZipFile(dl_archive, "r") as zip_ref:
                             extraction_dir = opj(tmp_dicom, item["id"])
                             zip_ref.extractall(extraction_dir)
