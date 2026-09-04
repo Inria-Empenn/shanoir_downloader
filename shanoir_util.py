@@ -7,17 +7,18 @@ import getpass
 import sys
 import logging
 import http.client as http_client
+import keycloak_auth
 from pathlib import Path
 
-def init_logging(args):
 
+def init_logging(args):
     verbose = args.verbose
 
     logfile = Path(args.log_file)
     logfile.parent.mkdir(exist_ok=True, parents=True)
 
     logging.basicConfig(
-        level=logging.INFO, # if verbose else logging.ERROR,
+        level=logging.INFO,  # if verbose else logging.ERROR,
         format="%(asctime)s [%(levelname)s] %(message)s",
         datefmt='%Y-%m-%d %H:%M:%S',
         handlers=[
@@ -35,7 +36,6 @@ def init_logging(args):
 
 
 def initialize(args):
-
     server_domain = args.domain
     username = args.username
     if hasattr(args, 'service'):
@@ -45,13 +45,14 @@ def initialize(args):
 
     verify = args.certificate if hasattr(args, 'certificate') and args.certificate != '' else True
 
-    proxy_url = None # 'user:pass@host:port'
+    proxy_url = None  # 'user:pass@host:port'
 
     if hasattr(args, 'proxy_url') and args.proxy_url is not None:
         proxy_a = args.proxy_url.split('@')
         proxy_user = proxy_a[0]
         proxy_host = proxy_a[1]
-        proxy_password = getpass.getpass(prompt='Proxy password for user ' + proxy_user + ' and host ' + proxy_host + ': ', stream=None)
+        proxy_password = getpass.getpass(
+            prompt='Proxy password for user ' + proxy_user + ' and host ' + proxy_host + ': ', stream=None)
         proxy_url = proxy_user + ':' + proxy_password + '@' + proxy_host
 
     else:
@@ -79,7 +80,8 @@ def initialize(args):
                         proxy_config[proxy_key] = proxy_value
 
                 if 'enabled' not in proxy_config or proxy_config['enabled'] == 'true':
-                    if 'user' in proxy_config and len(proxy_config['user']) > 0 and 'password' in proxy_config and len(proxy_config['password']) > 0:
+                    if 'user' in proxy_config and len(proxy_config['user']) > 0 and 'password' in proxy_config and len(
+                            proxy_config['password']) > 0:
                         proxy_url = proxy_config['user'] + ':' + proxy_config['password']
                     proxy_url += '@' + proxy_config['host'] + ':' + proxy_config['port']
         else:
@@ -88,7 +90,6 @@ def initialize(args):
     proxies = None
 
     if proxy_url:
-
         proxies = {
             'http': 'http://' + proxy_url,
             # 'https': 'https://' + proxy_url,
@@ -105,70 +106,59 @@ def initialize(args):
         result['service'] = service
 
     return result
-    
+
+
 access_token = None
 refresh_token = None
 
-# using user's password, get the first access token and the refresh token
+
+# log in and get the first access token and the refresh token
+# the 2FA code is only asked for if Keycloak challenges for it
 def ask_access_token(config):
     try:
-        password = os.environ['shanoir_password'] if 'shanoir_password' in os.environ else getpass.getpass(prompt='Password for Shanoir user ' + config['username'] + ': ', stream=None)
-        otp = os.environ['shanoir_otp'] if 'shanoir_otp' in os.environ else input(
-            'One-time 2FA code for Shanoir user ' + config['username'] + ': ')
-    except:
+        access, refresh = keycloak_auth.login(config)
+    except KeyboardInterrupt:
         sys.exit(0)
-    url = 'https://' + config['domain'] + '/auth/realms/shanoir-ng/protocol/openid-connect/token'
-    payload = {
-        'client_id' : 'shanoir-uploader',
-        'grant_type' : 'password',
-        'username' : config['username'],
-        'password' : password,
-        'totp': otp,
-        'scope' : 'offline_access'
-    }
-    # curl -d '{"client_id":"shanoir-uploader", "grant_type":"password", "username": "amasson", "password": "", "scope": "offline_access" }' -H "Content-Type: application/json" -X POST
-
-    headers = {'content-type': 'application/x-www-form-urlencoded'}
-    print('get keycloak token...')
-    response = requests.post(url, data=payload, headers=headers, proxies=config['proxies'], verify=config['verify'], timeout=config['timeout'])
-    if not hasattr(response, 'status_code') or response.status_code != 200:
-        print('Failed to connect, make sur you have a certified IP or are connected on a valid VPN.')
-        raise ConnectionError(response.status_code)
-
-    response_json = json.loads(response.text)
-    if 'error_description' in response_json and response_json['error_description'] == 'Invalid user credentials':
-        print('bad username or password')
+    except keycloak_auth.AuthenticationError as e:
+        print(str(e))
         sys.exit(1)
     global refresh_token
-    refresh_token = response_json['refresh_token']
-    return response_json['access_token']
+    refresh_token = refresh
+    return access
+
 
 # get a new acess token using the refresh token
 def refresh_access_token(config):
     url = 'https://' + config['domain'] + '/auth/realms/shanoir-ng/protocol/openid-connect/token'
     payload = {
-        'grant_type' : 'refresh_token',
-        'refresh_token' : refresh_token,
-        'client_id' : 'shanoir-uploader'
+        'grant_type': 'refresh_token',
+        'refresh_token': refresh_token,
+        'client_id': 'shanoir-uploader'
     }
     headers = {'content-type': 'application/x-www-form-urlencoded'}
     logging.info('refresh keycloak token...')
-    response = requests.post(url, data=payload, headers=headers, proxies=config['proxies'], verify=config['verify'], timeout=config['timeout'])
+    response = requests.post(url, data=payload, headers=headers, proxies=config['proxies'], verify=config['verify'],
+                             timeout=config['timeout'])
     if response.status_code != 200:
         logging.error('response status : {response.status_code}, {responses[response.status_code]}')
     response_json = response.json()
     return response_json['access_token']
 
+
 def perform_rest_request(config, rtype, url, **kwargs):
     response = None
     if rtype == 'get':
-        response = requests.get(url, proxies=config['proxies'], verify=config['verify'], timeout=config['timeout'], **kwargs)
+        response = requests.get(url, proxies=config['proxies'], verify=config['verify'], timeout=config['timeout'],
+                                **kwargs)
     elif rtype == 'post':
-        response = requests.post(url, proxies=config['proxies'], verify=config['verify'], timeout=config['timeout'], **kwargs)
+        response = requests.post(url, proxies=config['proxies'], verify=config['verify'], timeout=config['timeout'],
+                                 **kwargs)
     elif rtype == 'delete':
-        response = requests.delete(url, proxies=config['proxies'], verify=config['verify'], timeout=config['timeout'], **kwargs)
+        response = requests.delete(url, proxies=config['proxies'], verify=config['verify'], timeout=config['timeout'],
+                                   **kwargs)
     elif rtype == 'put':
-        response = requests.put(url, proxies=config['proxies'], verify=config['verify'], timeout=config['timeout'], **kwargs)
+        response = requests.put(url, proxies=config['proxies'], verify=config['verify'], timeout=config['timeout'],
+                                **kwargs)
     else:
         print('Error: unimplemented request type')
 
@@ -181,9 +171,9 @@ def rest_request(config, rtype, url, raise_for_status=True, **kwargs):
     if access_token is None:
         access_token = ask_access_token(config)
     headers = {
-        'Authorization' : 'Bearer ' + access_token,
-        'content-type' : 'application/json',
-        'charset' : 'utf-8'
+        'Authorization': 'Bearer ' + access_token,
+        'content-type': 'application/json',
+        'charset': 'utf-8'
     }
     response = perform_rest_request(config, rtype, url, headers=headers, **kwargs)
     logging.error(response)
@@ -196,6 +186,7 @@ def rest_request(config, rtype, url, raise_for_status=True, **kwargs):
         response.raise_for_status()
     return response
 
+
 def log_response(e):
     logging.error('Response status code: {e.response.status_code}')
     logging.error('		 reason: {e.response.reason}')
@@ -204,52 +195,61 @@ def log_response(e):
     logging.error(str(e))
     return
 
+
 # perform a GET request on the given url, asks for a new access token if the current one is outdated
 def rest_get(config, url, params=None, stream=None):
     return rest_request(config, 'get', url, params=params, stream=stream)
 
+
 # perform a POST request on the given url, asks for a new access token if the current one is outdated
 def rest_post(config, url, params=None, files=None, stream=None, json=None, data=None, raise_for_status=True):
-    return rest_request(config, 'post', url, raise_for_status, params=params, files=files, stream=stream, json=json, data=data)
+    return rest_request(config, 'post', url, raise_for_status, params=params, files=files, stream=stream, json=json,
+                        data=data)
+
 
 # perform a DELETE request on the given url, asks for a new access token if the current one is outdated
 def rest_delete(config, url, params=None, stream=None, raise_for_status=True):
     return rest_request(config, 'delete', url, raise_for_status, params=params, stream=stream)
+
 
 def createExecution(config, execution, silent=False):
     global refresh_token
     global access_token
     if access_token is None:
         access_token = ask_access_token(config)
-    execution["identifier"]=""
+    execution["identifier"] = ""
     execution["name"] += "_" + datetime.datetime.now().strftime("%m%d%Y%H%M%S")
     execution["refreshToken"] = refresh_token
     execution["exportFormat"] = "dcm"
     execution["studyIdentifier"] = 17
-    execution["client"]="shanoir-uploader"
+    execution["client"] = "shanoir-uploader"
     url = 'https://' + config['domain'] + '/shanoir-ng/datasets/carmin-data/createExecution'
     response = rest_post(config, url, {}, data=json.dumps(execution), raise_for_status=False)
     if response.status_code == 401:
         return "401"
     return response.json()
 
+
 def getExecutionStatus(config, identifier):
     url = 'https://' + config['domain'] + '/shanoir-ng/datasets/carmin-data/execution/' + identifier
     response = rest_get(config, url)
     return response.content
+
 
 def deleteDataset(config, datasetId):
     url = 'https://' + config['domain'] + '/shanoir-ng/datasets/datasets/' + datasetId
     response = rest_delete(config, url, raise_for_status=False)
     return response.status_code
 
+
 def deleteExamination(config, examId):
     url = 'https://' + config['domain'] + '/shanoir-ng/datasets/examinations/' + examId
     response = rest_delete(config, url, raise_for_status=False)
     return response.status_code
 
+
 def deleteSubject(config, subjectId):
-    url = 'https://' + config['domain'] + '/shanoir-ng/' + config['service'] +'/subjects/' + subjectId
+    url = 'https://' + config['domain'] + '/shanoir-ng/' + config['service'] + '/subjects/' + subjectId
     response = rest_delete(config, url, raise_for_status=False)
     return response.status_code
 
