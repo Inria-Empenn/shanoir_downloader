@@ -97,6 +97,8 @@ def init_logging(args):
 
 
 def initialize(args, verbose=True):
+    server_domain = args.domain
+    username = args.username
 
     output_folder = Path(args.output_folder)
     output_folder.mkdir(parents=True, exist_ok=True)
