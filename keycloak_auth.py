@@ -332,7 +332,42 @@ def _ask_password(username):
 	return getpass.getpass(prompt='Password for Shanoir user ' + username + ': ', stream=None)
 
 
-def _ask_otp(username, attempt):
+def _choose_otp_device(username, devices):
+	"""Returns the OTP device to check the code against, among the two or more
+	offered by Keycloak: the one named by the ``shanoir_otp_device`` environment
+	variable (device name or 1-based number), else the one picked at the prompt,
+	else Keycloak's default when no terminal is available."""
+	default_index = next(i for i, device in enumerate(devices) if device['selected'])
+	listing = ''.join('\n  %d) %s%s' % (i + 1, device['label'], ' (default)' if i == default_index else '')
+		for i, device in enumerate(devices))
+
+	if 'shanoir_otp_device' in os.environ:
+		wanted = os.environ['shanoir_otp_device'].strip()
+		for device in devices:
+			if device['label'].lower() == wanted.lower():
+				return device
+		if wanted.isdigit() and 1 <= int(wanted) <= len(devices):
+			return devices[int(wanted) - 1]
+		raise AuthenticationError(
+			'shanoir_otp_device="' + wanted + '" matches none of the OTP devices of user ' + username
+			+ ' (give a device name or number):' + listing)
+
+	if not sys.stdin.isatty():
+		print('\nSeveral OTP devices are configured for user ' + username + ', using the default one "'
+			+ devices[default_index]['label'] + '" (set shanoir_otp_device to choose another).')
+		return devices[default_index]
+
+	print('\nSeveral OTP devices are configured for Shanoir user ' + username + ':' + listing)
+	while True:
+		answer = input('OTP device to use [%d]: ' % (default_index + 1)).strip()
+		if not answer:
+			return devices[default_index]
+		if answer.isdigit() and 1 <= int(answer) <= len(devices):
+			return devices[int(answer) - 1]
+		print('Please enter a number between 1 and %d.' % len(devices))
+
+
+def _ask_otp(username, attempt, device_label=None):
 	"""Asks for the one-time code. The environment variable is only consumed on
 	the first attempt, so that a stale value does not loop forever."""
 	if attempt == 0 and 'shanoir_otp' in os.environ:
@@ -341,7 +376,8 @@ def _ask_otp(username, attempt):
 		raise AuthenticationError(
 			'Two-factor authentication is enabled for user ' + username + ' but no terminal is '
 			'available to ask for the code: set the shanoir_otp environment variable.')
-	return input('\nOne-time 2FA code for Shanoir user ' + username + ': ').strip()
+	device = ' (' + device_label + ')' if device_label else ''
+	return input('\nOne-time 2FA code' + device + ' for Shanoir user ' + username + ': ').strip()
 
 
 def login(config):
@@ -356,12 +392,19 @@ def login(config):
 	result = session.submit_credentials(username, password)
 
 	attempt = 0
+	device = None
 	while result.step == OTP_REQUIRED:
 		if attempt >= MAX_OTP_ATTEMPTS:
 			raise AuthenticationError('Too many invalid 2FA codes.')
 		if result.message and attempt > 0:
 			print(result.message)
-		result = session.submit_otp(_ask_otp(username, attempt))
+		# The device list is only offered to users with two or more OTP devices.
+		if not session.otp_devices:
+			device = None
+		elif session.selected_credential_id is None:
+			device = _choose_otp_device(username, session.otp_devices)
+			session.selected_credential_id = device['id']
+		result = session.submit_otp(_ask_otp(username, attempt, device['label'] if device else None))
 		attempt += 1
 
 	if result.step == SUCCESS:
