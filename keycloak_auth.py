@@ -97,6 +97,42 @@ def _extract_hidden_value(html, name):
 	return html_lib.unescape(value.group(1)) if value else None
 
 
+def _extract_attribute(tag, name):
+	match = re.search(r'\b' + re.escape(name) + r'="([^"]*)"', tag, re.IGNORECASE)
+	return html_lib.unescape(match.group(1)) if match else None
+
+
+def _extract_otp_devices(html):
+	"""Returns the OTP devices offered on the OTP form, as a list of
+	``{'id', 'label', 'selected'}`` dicts.
+
+	Keycloak only renders the ``selectedCredentialId`` radio inputs when the
+	user has two or more OTP devices; the list is empty otherwise. When no
+	radio is checked, the first device is the one Keycloak will use."""
+	devices = []
+	for tag in re.findall(r'<input\b[^>]*\bname="selectedCredentialId"[^>]*>', html, re.IGNORECASE):
+		credential_id = _extract_attribute(tag, 'value')
+		if not credential_id:
+			continue
+		label = None
+		input_id = _extract_attribute(tag, 'id')
+		if input_id:
+			match = re.search(r'<label\b[^>]*\bfor="' + re.escape(input_id) + r'"[^>]*>(.*?)</label>',
+				html, re.IGNORECASE | re.DOTALL)
+			if match:
+				title = re.search(r'<span\b[^>]*\bclass="[^"]*\bshanoir-otp-tile-title\b[^"]*"[^>]*>(.*?)</span>',
+					match.group(1), re.IGNORECASE | re.DOTALL)
+				label = _strip_tags(title.group(1) if title else match.group(1))
+		devices.append({
+			'id': credential_id,
+			'label': label or 'Device %d' % (len(devices) + 1),
+			'selected': re.search(r'\schecked\b', tag, re.IGNORECASE) is not None,
+		})
+	if devices and not any(device['selected'] for device in devices):
+		devices[0]['selected'] = True
+	return devices
+
+
 def _extract_error_message(html):
 	"""Best effort extraction of the message Keycloak displays on the page."""
 	match = re.search(r'<span\s+id="input-error"[^>]*>(.*?)</span>', html, re.IGNORECASE | re.DOTALL)
@@ -136,6 +172,8 @@ class LoginSession:
 		# Action URL of the Keycloak page currently displayed, updated at each step.
 		self.current_action_url = None
 		self.current_credential_id = ''
+		# OTP devices offered on the current OTP page; empty when the user has a single device.
+		self.otp_devices = []
 
 	def _to_base_url(self, url):
 		"""Rewrites a Keycloak URL onto the configured server host.
@@ -238,6 +276,7 @@ class LoginSession:
 		if 'id="kc-otp-login-form"' in html:
 			self.current_action_url = self._to_base_url(_extract_form_action(html, 'kc-otp-login-form'))
 			self.current_credential_id = _extract_hidden_value(html, 'credentialId') or ''
+			self.otp_devices = _extract_otp_devices(html)
 			return AuthResult(OTP_REQUIRED, message=message)
 
 		if 'id="kc-passwd-update-form"' in html:
