@@ -97,6 +97,42 @@ def _extract_hidden_value(html, name):
 	return html_lib.unescape(value.group(1)) if value else None
 
 
+def _extract_attribute(tag, name):
+	match = re.search(r'\b' + re.escape(name) + r'="([^"]*)"', tag, re.IGNORECASE)
+	return html_lib.unescape(match.group(1)) if match else None
+
+
+def _extract_otp_devices(html):
+	"""Returns the OTP devices offered on the OTP form, as a list of
+	``{'id', 'label', 'selected'}`` dicts.
+
+	Keycloak only renders the ``selectedCredentialId`` radio inputs when the
+	user has two or more OTP devices; the list is empty otherwise. When no
+	radio is checked, the first device is the one Keycloak will use."""
+	devices = []
+	for tag in re.findall(r'<input\b[^>]*\bname="selectedCredentialId"[^>]*>', html, re.IGNORECASE):
+		credential_id = _extract_attribute(tag, 'value')
+		if not credential_id:
+			continue
+		label = None
+		input_id = _extract_attribute(tag, 'id')
+		if input_id:
+			match = re.search(r'<label\b[^>]*\bfor="' + re.escape(input_id) + r'"[^>]*>(.*?)</label>',
+				html, re.IGNORECASE | re.DOTALL)
+			if match:
+				title = re.search(r'<span\b[^>]*\bclass="[^"]*\bshanoir-otp-tile-title\b[^"]*"[^>]*>(.*?)</span>',
+					match.group(1), re.IGNORECASE | re.DOTALL)
+				label = _strip_tags(title.group(1) if title else match.group(1))
+		devices.append({
+			'id': credential_id,
+			'label': label or 'Device %d' % (len(devices) + 1),
+			'selected': re.search(r'\schecked\b', tag, re.IGNORECASE) is not None,
+		})
+	if devices and not any(device['selected'] for device in devices):
+		devices[0]['selected'] = True
+	return devices
+
+
 def _extract_error_message(html):
 	"""Best effort extraction of the message Keycloak displays on the page."""
 	match = re.search(r'<span\s+id="input-error"[^>]*>(.*?)</span>', html, re.IGNORECASE | re.DOTALL)
@@ -136,6 +172,10 @@ class LoginSession:
 		# Action URL of the Keycloak page currently displayed, updated at each step.
 		self.current_action_url = None
 		self.current_credential_id = ''
+		# OTP devices offered on the current OTP page; empty when the user has a single device.
+		self.otp_devices = []
+		# Credential id of the OTP device chosen among otp_devices, posted as selectedCredentialId.
+		self.selected_credential_id = None
 
 	def _to_base_url(self, url):
 		"""Rewrites a Keycloak URL onto the configured server host.
@@ -181,11 +221,18 @@ class LoginSession:
 		})
 
 	def submit_otp(self, otp_code):
-		"""Step 2: post the one-time code to the OTP form action URL."""
-		return self._post(self.current_action_url, {
+		"""Step 2: post the one-time code to the OTP form action URL.
+
+		``credentialId`` is the authenticator selector; the OTP device the code
+		is checked against is ``selectedCredentialId``, without which Keycloak
+		uses the user's default device."""
+		data = {
 			'otp': otp_code,
 			'credentialId': self.current_credential_id,
-		})
+		}
+		if self.selected_credential_id:
+			data['selectedCredentialId'] = self.selected_credential_id
+		return self._post(self.current_action_url, data)
 
 	# --- internals --------------------------------------------------------
 
@@ -238,6 +285,10 @@ class LoginSession:
 		if 'id="kc-otp-login-form"' in html:
 			self.current_action_url = self._to_base_url(_extract_form_action(html, 'kc-otp-login-form'))
 			self.current_credential_id = _extract_hidden_value(html, 'credentialId') or ''
+			self.otp_devices = _extract_otp_devices(html)
+			# Keep the device chosen before a wrong code, unless the page no longer offers it.
+			if self.selected_credential_id not in [device['id'] for device in self.otp_devices]:
+				self.selected_credential_id = None
 			return AuthResult(OTP_REQUIRED, message=message)
 
 		if 'id="kc-passwd-update-form"' in html:
@@ -281,7 +332,42 @@ def _ask_password(username):
 	return getpass.getpass(prompt='Password for Shanoir user ' + username + ': ', stream=None)
 
 
-def _ask_otp(username, attempt):
+def _choose_otp_device(username, devices):
+	"""Returns the OTP device to check the code against, among the two or more
+	offered by Keycloak: the one named by the ``shanoir_otp_device`` environment
+	variable (device name or 1-based number), else the one picked at the prompt,
+	else Keycloak's default when no terminal is available."""
+	default_index = next(i for i, device in enumerate(devices) if device['selected'])
+	listing = ''.join('\n  %d) %s%s' % (i + 1, device['label'], ' (default)' if i == default_index else '')
+		for i, device in enumerate(devices))
+
+	if 'shanoir_otp_device' in os.environ:
+		wanted = os.environ['shanoir_otp_device'].strip()
+		for device in devices:
+			if device['label'].lower() == wanted.lower():
+				return device
+		if wanted.isdigit() and 1 <= int(wanted) <= len(devices):
+			return devices[int(wanted) - 1]
+		raise AuthenticationError(
+			'shanoir_otp_device="' + wanted + '" matches none of the OTP devices of user ' + username
+			+ ' (give a device name or number):' + listing)
+
+	if not sys.stdin.isatty():
+		print('\nSeveral OTP devices are configured for user ' + username + ', using the default one "'
+			+ devices[default_index]['label'] + '" (set shanoir_otp_device to choose another).')
+		return devices[default_index]
+
+	print('\nSeveral OTP devices are configured for Shanoir user ' + username + ':' + listing)
+	while True:
+		answer = input('OTP device to use [%d]: ' % (default_index + 1)).strip()
+		if not answer:
+			return devices[default_index]
+		if answer.isdigit() and 1 <= int(answer) <= len(devices):
+			return devices[int(answer) - 1]
+		print('Please enter a number between 1 and %d.' % len(devices))
+
+
+def _ask_otp(username, attempt, device_label=None):
 	"""Asks for the one-time code. The environment variable is only consumed on
 	the first attempt, so that a stale value does not loop forever."""
 	if attempt == 0 and 'shanoir_otp' in os.environ:
@@ -290,7 +376,8 @@ def _ask_otp(username, attempt):
 		raise AuthenticationError(
 			'Two-factor authentication is enabled for user ' + username + ' but no terminal is '
 			'available to ask for the code: set the shanoir_otp environment variable.')
-	return input('\nOne-time 2FA code for Shanoir user ' + username + ': ').strip()
+	device = ' (' + device_label + ')' if device_label else ''
+	return input('\nOne-time 2FA code' + device + ' for Shanoir user ' + username + ': ').strip()
 
 
 def login(config):
@@ -305,12 +392,19 @@ def login(config):
 	result = session.submit_credentials(username, password)
 
 	attempt = 0
+	device = None
 	while result.step == OTP_REQUIRED:
 		if attempt >= MAX_OTP_ATTEMPTS:
 			raise AuthenticationError('Too many invalid 2FA codes.')
 		if result.message and attempt > 0:
 			print(result.message)
-		result = session.submit_otp(_ask_otp(username, attempt))
+		# The device list is only offered to users with two or more OTP devices.
+		if not session.otp_devices:
+			device = None
+		elif session.selected_credential_id is None:
+			device = _choose_otp_device(username, session.otp_devices)
+			session.selected_credential_id = device['id']
+		result = session.submit_otp(_ask_otp(username, attempt, device['label'] if device else None))
 		attempt += 1
 
 	if result.step == SUCCESS:
