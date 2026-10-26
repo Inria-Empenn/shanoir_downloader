@@ -174,6 +174,8 @@ class LoginSession:
 		self.current_credential_id = ''
 		# OTP devices offered on the current OTP page; empty when the user has a single device.
 		self.otp_devices = []
+		# Credential id of the OTP device chosen among otp_devices, posted as selectedCredentialId.
+		self.selected_credential_id = None
 
 	def _to_base_url(self, url):
 		"""Rewrites a Keycloak URL onto the configured server host.
@@ -219,11 +221,18 @@ class LoginSession:
 		})
 
 	def submit_otp(self, otp_code):
-		"""Step 2: post the one-time code to the OTP form action URL."""
-		return self._post(self.current_action_url, {
+		"""Step 2: post the one-time code to the OTP form action URL.
+
+		``credentialId`` is the authenticator selector; the OTP device the code
+		is checked against is ``selectedCredentialId``, without which Keycloak
+		uses the user's default device."""
+		data = {
 			'otp': otp_code,
 			'credentialId': self.current_credential_id,
-		})
+		}
+		if self.selected_credential_id:
+			data['selectedCredentialId'] = self.selected_credential_id
+		return self._post(self.current_action_url, data)
 
 	# --- internals --------------------------------------------------------
 
@@ -277,6 +286,9 @@ class LoginSession:
 			self.current_action_url = self._to_base_url(_extract_form_action(html, 'kc-otp-login-form'))
 			self.current_credential_id = _extract_hidden_value(html, 'credentialId') or ''
 			self.otp_devices = _extract_otp_devices(html)
+			# Keep the device chosen before a wrong code, unless the page no longer offers it.
+			if self.selected_credential_id not in [device['id'] for device in self.otp_devices]:
+				self.selected_credential_id = None
 			return AuthResult(OTP_REQUIRED, message=message)
 
 		if 'id="kc-passwd-update-form"' in html:
